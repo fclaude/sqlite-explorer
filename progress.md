@@ -19,14 +19,14 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 | 1 | Scaffold and tooling | Done | agent | 2026-05-15 |
 | 2 | DB connection, file picker, identifier quoting | Done | agent | 2026-05-15 |
 | 3 | Schema introspection | Done | agent | 2026-05-15 |
-| 4 | Frontend shell, sidebar, status bar | Not started | — | — |
+| 4 | Frontend shell, sidebar, status bar | Done | agent | 2026-05-15 |
 | 5 | Table data browser | Not started | — | — |
 | 6 | SQL query runner + read-only enforcement | Not started | — | — |
 | 7 | CSV export | Not started | — | — |
 | 8 | UX polish, error handling, performance caps | Not started | — | — |
 | 9 | Tests, sample DB, README, build | Not started | — | — |
 
-Overall completion: 3 / 9 stages.
+Overall completion: 4 / 9 stages.
 
 ---
 
@@ -96,19 +96,19 @@ Wails CLI installed via `go install github.com/wailsapp/wails/v2/cmd/wails@v2.12
 
 **Goal.** Three-pane app shell that renders the schema; tabs for Data, Schema, SQL scaffolded.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] Layout renders cleanly at 1280x800 on macOS without overflow.
-- [ ] No console errors/warnings in dev.
-- [ ] Component tests (Sidebar from fixture, empty StatusBar) green.
-- [ ] Frontend never touches Wails `runtime` outside `api.ts`.
+- [x] Layout renders cleanly at 1280x800 on macOS without overflow.
+- [x] No console errors/warnings in dev.
+- [x] Component tests (Sidebar from fixture, empty StatusBar) green.
+- [x] Frontend never touches Wails `runtime` outside `api.ts`.
 
 **Notes.**
-_None._
+`api.ts` Wails wrapper; React Context + useReducer state; vitest + Testing Library.
 
 ---
 
@@ -229,6 +229,7 @@ _None._
 
 Append a one-line entry whenever a stage's status changes. Newest entries at the top.
 
+- 2026-05-15 — Stage 4 -> Done. Three-pane shell, Sidebar, StatusBar, tabs, api.ts, component tests.
 - 2026-05-15 — Stage 3 -> Done. GetSchema, GetTableRowCount, PRAGMA introspection, fixture tests.
 - 2026-05-15 — Stage 2 -> Done. OpenDatabase/CloseDatabase, read-only DSN, file picker, QuoteIdentifier + tests; Makefile `run` target.
 - 2026-05-15 — Stage 1 -> Done. Wails react-ts scaffold, backend package, modernc.org/sqlite, README/Makefile; `wails doctor`, `go vet`, `npm run build`, `wails build` passed.

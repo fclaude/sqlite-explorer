@@ -1,98 +1,125 @@
-import {useState} from 'react';
+import {useCallback, useRef} from 'react';
 import './App.css';
-import {CloseDatabase, DatabaseInfo, GetSchema, OpenDatabase} from "../wailsjs/go/backend/App";
-import {model} from "../wailsjs/go/models";
+import {DataGrid} from './components/DataGrid';
+import {SchemaView} from './components/SchemaView';
+import {Sidebar} from './components/Sidebar';
+import {SqlEditor} from './components/SqlEditor';
+import {StatusBar} from './components/StatusBar';
+import {AppProvider, useApp} from './state/AppProvider';
+import {MainTab} from './state/types';
 
-function App() {
-    const [dbInfo, setDbInfo] = useState<model.DatabaseInfo | null>(null);
-    const [message, setMessage] = useState('Open a SQLite database to begin.');
-    const [schemaSummary, setSchemaSummary] = useState('');
+const TABS: {id: MainTab; label: string}[] = [
+    {id: 'data', label: 'Data'},
+    {id: 'schema', label: 'Schema'},
+    {id: 'sql', label: 'SQL'},
+];
 
-    async function openDatabase() {
-        try {
-            const info: model.DatabaseInfo = await OpenDatabase();
-            setDbInfo(info);
-            setMessage(`Opened: ${info.path} (${info.sizeBytes} bytes, read-only: ${info.readOnly})`);
-            setSchemaSummary('');
-        } catch (err) {
-            setDbInfo(null);
-            setSchemaSummary('');
-            setMessage(formatError(err));
-        }
-    }
+function AppShell() {
+    const {state, openDatabase, closeDatabase, selectObject, setTab, setSidebarWidth, toggleGroup, clearError} =
+        useApp();
+    const dragRef = useRef<{startX: number; startWidth: number} | null>(null);
 
-    async function loadSchema() {
-        try {
-            const schema: model.SchemaInfo = await GetSchema();
-            setSchemaSummary(
-                `Schema: ${schema.tables?.length ?? 0} tables, ` +
-                `${schema.views?.length ?? 0} views, ` +
-                `${schema.indexes?.length ?? 0} indexes, ` +
-                `${schema.triggers?.length ?? 0} triggers`
-            );
-        } catch (err) {
-            setSchemaSummary(formatError(err));
-        }
-    }
+    const onResizeStart = useCallback(
+        (e: React.MouseEvent) => {
+            e.preventDefault();
+            dragRef.current = {startX: e.clientX, startWidth: state.sidebarWidth};
+            const onMove = (ev: MouseEvent) => {
+                if (!dragRef.current) return;
+                const delta = ev.clientX - dragRef.current.startX;
+                setSidebarWidth(dragRef.current.startWidth + delta);
+            };
+            const onUp = () => {
+                dragRef.current = null;
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        },
+        [state.sidebarWidth, setSidebarWidth],
+    );
 
-    async function closeDatabase() {
-        try {
-            await CloseDatabase();
-            setDbInfo(null);
-            setSchemaSummary('');
-            setMessage('Database closed.');
-        } catch (err) {
-            setMessage(formatError(err));
-        }
-    }
-
-    async function refreshInfo() {
-        if (!dbInfo) {
-            return;
-        }
-        try {
-            const info: model.DatabaseInfo = await DatabaseInfo();
-            setDbInfo(info);
-            setMessage(`Opened: ${info.path} (${info.sizeBytes} bytes, read-only: ${info.readOnly})`);
-        } catch (err) {
-            setMessage(formatError(err));
-        }
-    }
+    const hasDatabase = !!state.dbInfo;
 
     return (
         <div id="App" className="app-root">
-            <header className="toolbar">
-                <h1>SQLite Explorer</h1>
-                <div className="toolbar-actions">
-                    <button className="btn" onClick={openDatabase}>Open database</button>
-                    <button className="btn" onClick={closeDatabase} disabled={!dbInfo}>Close</button>
-                    <button className="btn" onClick={refreshInfo} disabled={!dbInfo}>Refresh info</button>
-                    <button className="btn" onClick={loadSchema} disabled={!dbInfo}>Load schema</button>
+            <header className="app-header">
+                <h1 className="app-title">SQLite Explorer</h1>
+                <div className="app-header-actions">
+                    <button type="button" className="btn" onClick={openDatabase}>
+                        Open database
+                    </button>
+                    <button type="button" className="btn" onClick={closeDatabase} disabled={!hasDatabase}>
+                        Close
+                    </button>
                 </div>
             </header>
-            <main className="content">
-                <p className="message">{message}</p>
-                {schemaSummary && <p className="schema-summary">{schemaSummary}</p>}
-                {dbInfo && (
-                    <dl className="db-info">
-                        <dt>Path</dt>
-                        <dd>{dbInfo.path}</dd>
-                        <dt>Size</dt>
-                        <dd>{dbInfo.sizeBytes} bytes</dd>
-                        <dt>Read-only</dt>
-                        <dd>{dbInfo.readOnly ? 'yes' : 'no'}</dd>
-                    </dl>
-                )}
-            </main>
+
+            <div className="app-body">
+                <div className="sidebar-pane" style={{width: state.sidebarWidth}}>
+                    <Sidebar
+                        schema={state.schema}
+                        selected={state.selected}
+                        collapsedGroups={state.collapsedGroups}
+                        onSelect={selectObject}
+                        onToggleGroup={toggleGroup}
+                    />
+                </div>
+                <div
+                    className="resize-handle"
+                    role="separator"
+                    aria-orientation="vertical"
+                    onMouseDown={onResizeStart}
+                />
+                <main className="main-pane">
+                    <div className="tab-bar" role="tablist">
+                        {TABS.map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={state.activeTab === tab.id}
+                                className={`tab${state.activeTab === tab.id ? ' active' : ''}`}
+                                onClick={() => setTab(tab.id)}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="tab-panel" role="tabpanel">
+                        {state.activeTab === 'data' && (
+                            <DataGrid
+                                selected={state.selected}
+                                hasDatabase={hasDatabase}
+                                onOpenDatabase={openDatabase}
+                            />
+                        )}
+                        {state.activeTab === 'schema' && (
+                            <SchemaView
+                                schema={state.schema}
+                                selected={state.selected}
+                                hasDatabase={hasDatabase}
+                                onOpenDatabase={openDatabase}
+                            />
+                        )}
+                        {state.activeTab === 'sql' && (
+                            <SqlEditor hasDatabase={hasDatabase} onOpenDatabase={openDatabase} />
+                        )}
+                    </div>
+                </main>
+            </div>
+
+            <StatusBar dbInfo={state.dbInfo} status={state.status} onClearError={clearError} />
         </div>
     );
 }
 
-function formatError(err: unknown): string {
-    if (err instanceof Error) {
-        return err.message;
-    }
-    return String(err);
+function App() {
+    return (
+        <AppProvider>
+            <AppShell />
+        </AppProvider>
+    );
 }
 
-export default App
+export default App;

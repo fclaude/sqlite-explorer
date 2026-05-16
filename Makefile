@@ -1,4 +1,4 @@
-.PHONY: build run dev vet test frontend-build doctor install-deps
+.PHONY: build run dev vet test frontend-test frontend-build doctor install-deps
 
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
@@ -26,6 +26,9 @@ vet:
 
 test:
 	go test ./...
+
+frontend-test:
+	cd frontend && npm test -- --run
 
 frontend-build:
 	cd frontend && npm run build

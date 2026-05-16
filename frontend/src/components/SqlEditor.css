@@ -1,0 +1,23 @@
+.sql-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    height: 100%;
+}
+
+.sql-textarea {
+    flex: 1;
+    min-height: 200px;
+    padding: 0.75rem;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+    background: #121a24;
+    color: #b8c5d6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    resize: none;
+}
+
+.sql-textarea:disabled {
+    opacity: 0.6;
+}

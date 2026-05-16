@@ -1,68 +1,99 @@
-#app {
-    height: 100vh;
-}
-
 .app-root {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: 100vh;
+    overflow: hidden;
     text-align: left;
     color: #e8eef5;
 }
 
-.toolbar {
+.app-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #2d3a4d;
+    flex-shrink: 0;
+    padding: 0.5rem 0.75rem;
     background: #1b2636;
+    border-bottom: 1px solid #2d3a4d;
 }
 
-.toolbar h1 {
+.app-title {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
 }
 
-.toolbar-actions {
+.app-header-actions {
     display: flex;
     gap: 0.5rem;
 }
 
-.content {
+.app-body {
+    display: flex;
     flex: 1;
-    padding: 1rem;
-    overflow: auto;
+    min-height: 0;
+    overflow: hidden;
 }
 
-.message {
-    margin: 0 0 1rem;
-    color: #b8c5d6;
+.sidebar-pane {
+    flex-shrink: 0;
+    min-width: 180px;
+    max-width: 480px;
+    overflow: hidden;
 }
 
-.schema-summary {
-    margin: 0 0 1rem;
-    color: #9ec9a8;
-    font-size: 0.9rem;
+.resize-handle {
+    flex-shrink: 0;
+    width: 4px;
+    cursor: col-resize;
+    background: #2d3a4d;
 }
 
-.db-info {
-    display: grid;
-    grid-template-columns: 6rem 1fr;
-    gap: 0.35rem 1rem;
-    margin: 0;
-    font-size: 0.9rem;
+.resize-handle:hover {
+    background: #4a6a8a;
 }
 
-.db-info dt {
+.main-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.tab-bar {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0;
+    border-bottom: 1px solid #2d3a4d;
+    background: #151f2b;
+}
+
+.tab {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
     color: #8fa3bc;
+    font-size: 0.85rem;
+    cursor: pointer;
 }
 
-.db-info dd {
-    margin: 0;
-    word-break: break-all;
+.tab:hover {
+    color: #e8eef5;
+    background: #1e2a3a;
+}
+
+.tab.active {
+    color: #e8eef5;
+    border-bottom-color: #5b8def;
+}
+
+.tab-panel {
+    flex: 1;
+    overflow: auto;
+    padding: 1rem;
+    min-height: 0;
 }
 
 .btn {
@@ -70,7 +101,7 @@
     border-radius: 4px;
     background: #243447;
     color: #e8eef5;
-    padding: 0.4rem 0.75rem;
+    padding: 0.35rem 0.75rem;
     cursor: pointer;
     font-size: 0.85rem;
 }
@@ -82,4 +113,13 @@
 .btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.btn-primary {
+    background: #2a4a6e;
+    border-color: #4a6a8a;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #355a82;
 }
