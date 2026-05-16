@@ -3,7 +3,9 @@ package backend
 import (
 	"context"
 	"errors"
+	"log"
 	"os"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -87,6 +89,28 @@ func (a *App) DatabaseInfo() (model.DatabaseInfo, error) {
 		return model.DatabaseInfo{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
 	}
 	return a.databaseInfo(a.db)
+}
+
+// GetSchema returns tables, views, indexes, and triggers for the open database.
+func (a *App) GetSchema() (model.SchemaInfo, error) {
+	if a.db == nil {
+		return model.SchemaInfo{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	}
+	start := time.Now()
+	schema, err := a.db.GetSchema(context.Background())
+	if err != nil {
+		return model.SchemaInfo{}, err
+	}
+	log.Printf("GetSchema completed in %dms", time.Since(start).Milliseconds())
+	return schema, nil
+}
+
+// GetTableRowCount returns an exact row count for a table or view (lazy, on demand).
+func (a *App) GetTableRowCount(table string) (int64, error) {
+	if a.db == nil {
+		return 0, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	}
+	return a.db.GetTableRowCount(context.Background(), table)
 }
 
 func (a *App) databaseInfo(conn *db.DB) (model.DatabaseInfo, error) {

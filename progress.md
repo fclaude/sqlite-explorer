@@ -18,7 +18,7 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 |---|-------|--------|-------|---------|
 | 1 | Scaffold and tooling | Done | agent | 2026-05-15 |
 | 2 | DB connection, file picker, identifier quoting | Done | agent | 2026-05-15 |
-| 3 | Schema introspection | Not started | — | — |
+| 3 | Schema introspection | Done | agent | 2026-05-15 |
 | 4 | Frontend shell, sidebar, status bar | Not started | — | — |
 | 5 | Table data browser | Not started | — | — |
 | 6 | SQL query runner + read-only enforcement | Not started | — | — |
@@ -26,7 +26,7 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 | 8 | UX polish, error handling, performance caps | Not started | — | — |
 | 9 | Tests, sample DB, README, build | Not started | — | — |
 
-Overall completion: 2 / 9 stages.
+Overall completion: 3 / 9 stages.
 
 ---
 
@@ -75,20 +75,20 @@ Wails CLI installed via `go install github.com/wailsapp/wails/v2/cmd/wails@v2.12
 
 **Goal.** Return tables, views, indexes, triggers plus per-table column / PK / FK / index metadata.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] All four object types appear in the response.
-- [ ] FK metadata includes `from`, `to`, `table`, `on_delete`, `on_update`.
-- [ ] Index metadata distinguishes unique vs non-unique.
-- [ ] Row count is **not** computed eagerly.
-- [ ] `TestGetSchema_Fixture` green.
+- [x] All four object types appear in the response.
+- [x] FK metadata includes `from`, `to`, `table`, `on_delete`, `on_update`.
+- [x] Index metadata distinguishes unique vs non-unique.
+- [x] Row count is **not** computed eagerly (`GetTableRowCount` on demand).
+- [x] `TestGetSchema_Fixture` green.
 
 **Notes.**
-_None._
+`testdata/fixtures.sql` + `fixture.sqlite` for appendix fixture. Auto-indexes filtered from top-level index list.
 
 ---
 
@@ -229,5 +229,6 @@ _None._
 
 Append a one-line entry whenever a stage's status changes. Newest entries at the top.
 
+- 2026-05-15 — Stage 3 -> Done. GetSchema, GetTableRowCount, PRAGMA introspection, fixture tests.
 - 2026-05-15 — Stage 2 -> Done. OpenDatabase/CloseDatabase, read-only DSN, file picker, QuoteIdentifier + tests; Makefile `run` target.
 - 2026-05-15 — Stage 1 -> Done. Wails react-ts scaffold, backend package, modernc.org/sqlite, README/Makefile; `wails doctor`, `go vet`, `npm run build`, `wails build` passed.

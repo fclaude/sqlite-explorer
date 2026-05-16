@@ -6,6 +6,10 @@ export function CloseDatabase():Promise<void>;
 
 export function DatabaseInfo():Promise<model.DatabaseInfo>;
 
+export function GetSchema():Promise<model.SchemaInfo>;
+
+export function GetTableRowCount(arg1:string):Promise<number>;
+
 export function OpenDatabase():Promise<model.DatabaseInfo>;
 
 export function OpenDatabasePath(arg1:string):Promise<model.DatabaseInfo>;

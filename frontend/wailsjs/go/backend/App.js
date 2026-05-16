@@ -10,6 +10,14 @@ export function DatabaseInfo() {
   return window['go']['backend']['App']['DatabaseInfo']();
 }
 
+export function GetSchema() {
+  return window['go']['backend']['App']['GetSchema']();
+}
+
+export function GetTableRowCount(arg1) {
+  return window['go']['backend']['App']['GetTableRowCount'](arg1);
+}
+
 export function OpenDatabase() {
   return window['go']['backend']['App']['OpenDatabase']();
 }
