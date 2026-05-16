@@ -105,6 +105,49 @@ func (a *App) GetSchema() (model.SchemaInfo, error) {
 	return schema, nil
 }
 
+// ExportRowsToCSV exports table page or query results to a CSV file via save dialog.
+func (a *App) ExportRowsToCSV(req model.ExportRequest) error {
+	if a.db == nil {
+		return apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	}
+	if a.ctx == nil {
+		return errors.New("application not started")
+	}
+
+	path := req.Path
+	if path == "" {
+		var err error
+		path, err = runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+			Title:           "Export to CSV",
+			DefaultFilename: exportDefaultFilename(req),
+			Filters: []runtime.FileFilter{
+				{DisplayName: "CSV (*.csv)", Pattern: "*.csv"},
+				{DisplayName: "All files", Pattern: "*"},
+			},
+		})
+		if err != nil {
+			return err
+		}
+		if path == "" {
+			return nil
+		}
+	}
+
+	return a.db.ExportRowsToCSV(context.Background(), path, req)
+}
+
+func exportDefaultFilename(req model.ExportRequest) string {
+	switch req.Source {
+	case db.ExportSourceTablePage:
+		if req.TableRows.Table != "" {
+			return req.TableRows.Table + ".csv"
+		}
+	case db.ExportSourceQueryResult:
+		return "query-results.csv"
+	}
+	return "export.csv"
+}
+
 // RunQuery executes read-only SQL and returns results.
 func (a *App) RunQuery(req model.QueryRequest) (model.QueryResponse, error) {
 	if a.db == nil {

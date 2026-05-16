@@ -15,6 +15,7 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
     const [result, setResult] = useState<model.QueryResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [history, setHistory] = useState<string[]>([]);
 
     const refreshHistory = useCallback(() => {
@@ -53,6 +54,21 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
         }
     }, [sql, clearError, reportTableQuery, refreshHistory]);
 
+    const exportCSV = async () => {
+        const text = sql.trim();
+        if (!text) {
+            return;
+        }
+        setExporting(true);
+        try {
+            await WailsAPI.exportQueryResult(text);
+        } catch (err) {
+            setError(formatAPIError(err).message);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -77,6 +93,14 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
             <div className="sql-editor-toolbar">
                 <button type="button" className="btn btn-primary" onClick={runQuery} disabled={loading}>
                     Run query
+                </button>
+                <button
+                    type="button"
+                    className="btn"
+                    onClick={exportCSV}
+                    disabled={loading || exporting || !sql.trim()}
+                >
+                    Export CSV
                 </button>
                 <span className="sql-editor-hint">Cmd/Ctrl+Enter to run</span>
                 {history.length > 0 && (

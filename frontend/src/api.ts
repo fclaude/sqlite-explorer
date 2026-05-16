@@ -4,6 +4,7 @@ import {
     GetSchema,
     GetTableRows,
     OpenDatabase,
+    ExportRowsToCSV,
     RunQuery,
 } from '../wailsjs/go/backend/App';
 import {model} from '../wailsjs/go/models';
@@ -31,6 +32,24 @@ export const WailsAPI = {
 
     runQuery(req: model.QueryRequest): Promise<model.QueryResponse> {
         return RunQuery(req);
+    },
+
+    exportTablePage(tableRows: model.TableRowsRequest): Promise<void> {
+        const req = new model.ExportRequest({
+            source: 'tablePage',
+            path: '',
+            tableRows: tableRows,
+        });
+        return ExportRowsToCSV(req);
+    },
+
+    exportQueryResult(sql: string): Promise<void> {
+        const req = new model.ExportRequest({
+            source: 'queryResult',
+            path: '',
+            sql: sql,
+        });
+        return ExportRowsToCSV(req);
     },
 };
 

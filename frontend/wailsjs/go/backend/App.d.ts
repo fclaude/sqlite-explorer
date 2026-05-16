@@ -6,6 +6,8 @@ export function CloseDatabase():Promise<void>;
 
 export function DatabaseInfo():Promise<model.DatabaseInfo>;
 
+export function ExportRowsToCSV(arg1:model.ExportRequest):Promise<void>;
+
 export function GetSchema():Promise<model.SchemaInfo>;
 
 export function GetTableRowCount(arg1:string):Promise<number>;

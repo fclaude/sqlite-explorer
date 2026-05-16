@@ -64,6 +64,66 @@ export namespace model {
 	        this.readOnly = source["readOnly"];
 	    }
 	}
+	export class TableRowsRequest {
+	    table: string;
+	    pageSize: number;
+	    page: number;
+	    sortColumn: string;
+	    sortDesc: boolean;
+	    filter: string;
+	    withTotal: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TableRowsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.table = source["table"];
+	        this.pageSize = source["pageSize"];
+	        this.page = source["page"];
+	        this.sortColumn = source["sortColumn"];
+	        this.sortDesc = source["sortDesc"];
+	        this.filter = source["filter"];
+	        this.withTotal = source["withTotal"];
+	    }
+	}
+	export class ExportRequest {
+	    source: string;
+	    path: string;
+	    tableRows: TableRowsRequest;
+	    sql: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.path = source["path"];
+	        this.tableRows = this.convertValues(source["tableRows"], TableRowsRequest);
+	        this.sql = source["sql"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ForeignKeyInfo {
 	    id: number;
 	    seq: number;
@@ -356,30 +416,7 @@ export namespace model {
 	}
 	
 	
-	export class TableRowsRequest {
-	    table: string;
-	    pageSize: number;
-	    page: number;
-	    sortColumn: string;
-	    sortDesc: boolean;
-	    filter: string;
-	    withTotal: boolean;
 	
-	    static createFrom(source: any = {}) {
-	        return new TableRowsRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.table = source["table"];
-	        this.pageSize = source["pageSize"];
-	        this.page = source["page"];
-	        this.sortColumn = source["sortColumn"];
-	        this.sortDesc = source["sortDesc"];
-	        this.filter = source["filter"];
-	        this.withTotal = source["withTotal"];
-	    }
-	}
 	export class TableRowsResponse {
 	    columns: ColumnResult[];
 	    rows: CellValue[][];

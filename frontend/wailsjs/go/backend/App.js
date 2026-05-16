@@ -10,6 +10,10 @@ export function DatabaseInfo() {
   return window['go']['backend']['App']['DatabaseInfo']();
 }
 
+export function ExportRowsToCSV(arg1) {
+  return window['go']['backend']['App']['ExportRowsToCSV'](arg1);
+}
+
 export function GetSchema() {
   return window['go']['backend']['App']['GetSchema']();
 }

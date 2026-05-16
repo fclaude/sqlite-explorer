@@ -22,11 +22,11 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 | 4 | Frontend shell, sidebar, status bar | Done | agent | 2026-05-15 |
 | 5 | Table data browser | Done | agent | 2026-05-15 |
 | 6 | SQL query runner + read-only enforcement | Done | agent | 2026-05-15 |
-| 7 | CSV export | Not started | — | — |
+| 7 | CSV export | Done | agent | 2026-05-15 |
 | 8 | UX polish, error handling, performance caps | Not started | — | — |
 | 9 | Tests, sample DB, README, build | Not started | — | — |
 
-Overall completion: 6 / 9 stages.
+Overall completion: 7 / 9 stages.
 
 ---
 
@@ -156,18 +156,18 @@ SqlEditor with Cmd/Ctrl+Enter, history dropdown (last 10), truncation banner. Va
 
 **Goal.** Export current table page or current query result to CSV via native save dialog.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] Both export sources (`tablePage`, `queryResult`) work.
-- [ ] No file left behind on cancel/error.
-- [ ] `TestExportCSV_RoundTrip`, `TestExportCSV_SpecialChars`, `TestExportCSV_NullsAndBlobs`, `TestExportCSV_HonorsReadOnly` green.
+- [x] Both export sources (`tablePage`, `queryResult`) work.
+- [x] No file left behind on cancel/error.
+- [x] `TestExportCSV_RoundTrip`, `TestExportCSV_SpecialChars`, `TestExportCSV_NullsAndBlobs`, `TestExportCSV_HonorsReadOnly` green.
 
 **Notes.**
-_None._
+Save dialog on backend; Export CSV on Data and SQL tabs. RFC 4180 via encoding/csv.
 
 ---
 
@@ -229,6 +229,7 @@ _None._
 
 Append a one-line entry whenever a stage's status changes. Newest entries at the top.
 
+- 2026-05-15 — Stage 7 -> Done. ExportRowsToCSV, save dialog, Data/SQL export buttons.
 - 2026-05-15 — Stage 6 -> Done. RunQuery, read-only validator, SqlEditor, query history.
 - 2026-05-15 — Stage 5 -> Done. GetTableRows pagination/sort/filter, DataGrid UI, backend tests.
 - 2026-05-15 — Stage 4 -> Done. Three-pane shell, Sidebar, StatusBar, tabs, api.ts, component tests.

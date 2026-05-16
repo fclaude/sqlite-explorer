@@ -23,6 +23,7 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
     const [data, setData] = useState<model.TableRowsResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
 
     const tableName =
         selected && (selected.kind === 'table' || selected.kind === 'view') ? selected.name : null;
@@ -104,6 +105,28 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
     const total = data?.totalRows;
     const maxPage = total != null ? Math.max(1, Math.ceil(total / pageSize)) : null;
 
+    const exportCSV = async () => {
+        if (!tableName) {
+            return;
+        }
+        setExporting(true);
+        try {
+            await WailsAPI.exportTablePage({
+                table: tableName,
+                page,
+                pageSize,
+                sortColumn,
+                sortDesc,
+                filter,
+                withTotal: false,
+            });
+        } catch (err) {
+            setError(formatAPIError(err).message);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const toggleSort = (col: string) => {
         if (sortColumn === col) {
             setSortDesc(!sortDesc);
@@ -139,6 +162,14 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                         ))}
                     </select>
                 </label>
+                <button
+                    type="button"
+                    className="btn"
+                    disabled={loading || exporting || !data?.rows?.length}
+                    onClick={exportCSV}
+                >
+                    Export CSV
+                </button>
                 <div className="data-grid-pager">
                     <button
                         type="button"
