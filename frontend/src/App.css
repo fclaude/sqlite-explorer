@@ -1,59 +1,79 @@
 #app {
     height: 100vh;
-    text-align: center;
 }
 
-#logo {
-    display: block;
-    width: 50%;
-    height: 50%;
-    margin: auto;
-    padding: 10% 0 0;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-    background-origin: content-box;
+.app-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    text-align: left;
+    color: #e8eef5;
 }
 
-.result {
-    height: 20px;
-    line-height: 20px;
-    margin: 1.5rem auto;
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #2d3a4d;
+    background: #1b2636;
 }
 
-.input-box .btn {
-    width: 60px;
-    height: 30px;
-    line-height: 30px;
-    border-radius: 3px;
-    border: none;
-    margin: 0 0 0 20px;
-    padding: 0 8px;
+.toolbar h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.content {
+    flex: 1;
+    padding: 1rem;
+    overflow: auto;
+}
+
+.message {
+    margin: 0 0 1rem;
+    color: #b8c5d6;
+}
+
+.db-info {
+    display: grid;
+    grid-template-columns: 6rem 1fr;
+    gap: 0.35rem 1rem;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.db-info dt {
+    color: #8fa3bc;
+}
+
+.db-info dd {
+    margin: 0;
+    word-break: break-all;
+}
+
+.btn {
+    border: 1px solid #3d4f66;
+    border-radius: 4px;
+    background: #243447;
+    color: #e8eef5;
+    padding: 0.4rem 0.75rem;
     cursor: pointer;
+    font-size: 0.85rem;
 }
 
-.input-box .btn:hover {
-    background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
-    color: #333333;
+.btn:hover:not(:disabled) {
+    background: #2f4258;
 }
 
-.input-box .input {
-    border: none;
-    border-radius: 3px;
-    outline: none;
-    height: 30px;
-    line-height: 30px;
-    padding: 0 10px;
-    background-color: rgba(240, 240, 240, 1);
-    -webkit-font-smoothing: antialiased;
-}
-
-.input-box .input:hover {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
-}
-
-.input-box .input:focus {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
+.btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }

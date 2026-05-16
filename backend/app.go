@@ -2,14 +2,20 @@ package backend
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"os"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"sqlite-explorer/backend/apperrors"
 	"sqlite-explorer/backend/db"
+	"sqlite-explorer/backend/model"
 )
 
 // App is the Wails-bound application backend.
 type App struct {
 	ctx context.Context
+	db  *db.DB
 }
 
 // NewApp creates a new App application struct.
@@ -23,8 +29,74 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// Greet returns a greeting for the given name (template placeholder).
-func (a *App) Greet(name string) string {
-	_ = db.Driver
-	return fmt.Sprintf("Hello %s, It's show time!", name)
+// OpenDatabase shows a native file picker and opens the selected SQLite file read-only.
+func (a *App) OpenDatabase() (model.DatabaseInfo, error) {
+	if a.ctx == nil {
+		return model.DatabaseInfo{}, errors.New("application not started")
+	}
+
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Open SQLite Database",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "SQLite databases (*.sqlite, *.sqlite3, *.db)", Pattern: "*.sqlite;*.sqlite3;*.db"},
+			{DisplayName: "All files", Pattern: "*"},
+		},
+	})
+	if err != nil {
+		return model.DatabaseInfo{}, err
+	}
+	if path == "" {
+		return model.DatabaseInfo{}, apperrors.New(apperrors.CodeCancelled, "Open database cancelled.", "")
+	}
+
+	return a.openPath(path)
+}
+
+// OpenDatabasePath opens a database at the given path (used by tests and tooling).
+func (a *App) OpenDatabasePath(path string) (model.DatabaseInfo, error) {
+	return a.openPath(path)
+}
+
+func (a *App) openPath(path string) (model.DatabaseInfo, error) {
+	if a.db != nil {
+		_ = a.db.Close()
+		a.db = nil
+	}
+
+	conn, err := db.Open(path, true)
+	if err != nil {
+		return model.DatabaseInfo{}, err
+	}
+	a.db = conn
+	return a.databaseInfo(conn)
+}
+
+// CloseDatabase closes the current database connection.
+func (a *App) CloseDatabase() error {
+	if a.db == nil {
+		return apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	}
+	err := a.db.Close()
+	a.db = nil
+	return err
+}
+
+// DatabaseInfo returns metadata for the currently open database.
+func (a *App) DatabaseInfo() (model.DatabaseInfo, error) {
+	if a.db == nil {
+		return model.DatabaseInfo{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	}
+	return a.databaseInfo(a.db)
+}
+
+func (a *App) databaseInfo(conn *db.DB) (model.DatabaseInfo, error) {
+	info, err := os.Stat(conn.Path())
+	if err != nil {
+		return model.DatabaseInfo{}, err
+	}
+	return model.DatabaseInfo{
+		Path:      conn.Path(),
+		SizeBytes: info.Size(),
+		ReadOnly:  conn.ReadOnly(),
+	}, nil
 }

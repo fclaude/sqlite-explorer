@@ -17,7 +17,7 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 | # | Stage | Status | Owner | Updated |
 |---|-------|--------|-------|---------|
 | 1 | Scaffold and tooling | Done | agent | 2026-05-15 |
-| 2 | DB connection, file picker, identifier quoting | Not started | — | — |
+| 2 | DB connection, file picker, identifier quoting | Done | agent | 2026-05-15 |
 | 3 | Schema introspection | Not started | — | — |
 | 4 | Frontend shell, sidebar, status bar | Not started | — | — |
 | 5 | Table data browser | Not started | — | — |
@@ -26,7 +26,7 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 | 8 | UX polish, error handling, performance caps | Not started | — | — |
 | 9 | Tests, sample DB, README, build | Not started | — | — |
 
-Overall completion: 1 / 9 stages.
+Overall completion: 2 / 9 stages.
 
 ---
 
@@ -55,19 +55,19 @@ Wails CLI installed via `go install github.com/wailsapp/wails/v2/cmd/wails@v2.12
 
 **Goal.** Open a SQLite file via native picker; hold a read-only connection; ship `QuoteIdentifier` with tests.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] `OpenDatabase` / `CloseDatabase` bound and callable from the frontend.
-- [ ] DSN includes `mode=ro&immutable=1`.
-- [ ] `TestQuoteIdentifier`, `TestOpen_ValidSqlite`, `TestOpen_NotSqlite`, `TestOpen_Missing` green.
-- [ ] Quoting helper used everywhere identifiers are interpolated.
+- [x] `OpenDatabase` / `CloseDatabase` bound and callable from the frontend.
+- [x] DSN includes `mode=ro&immutable=1`.
+- [x] `TestQuoteIdentifier`, `TestOpen_ValidSqlite`, `TestOpen_NotSqlite`, `TestOpen_Missing` green.
+- [x] Quoting helper used everywhere identifiers are interpolated (only `identifier.go` for now; no dynamic SQL yet).
 
 **Notes.**
-_None._
+`OpenDatabasePath` exposed for tests. `testdata/sample.sqlite` created by test helper. Makefile `run` target added.
 
 ---
 
@@ -229,4 +229,5 @@ _None._
 
 Append a one-line entry whenever a stage's status changes. Newest entries at the top.
 
+- 2026-05-15 — Stage 2 -> Done. OpenDatabase/CloseDatabase, read-only DSN, file picker, QuoteIdentifier + tests; Makefile `run` target.
 - 2026-05-15 — Stage 1 -> Done. Wails react-ts scaffold, backend package, modernc.org/sqlite, README/Makefile; `wails doctor`, `go vet`, `npm run build`, `wails build` passed.

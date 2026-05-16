@@ -31,20 +31,19 @@ wails dev
 Or via Makefile:
 
 ```bash
-make dev
+make dev      # hot reload
+make build    # production build
+make run      # build then launch the app
 ```
 
-## Build
+## Build and run
 
 ```bash
-wails build
+make build    # production build -> build/bin/sqlite-explorer.app (macOS)
+make run      # build and open the app
 ```
 
 Release binary: `build/bin/sqlite-explorer` (macOS: `build/bin/sqlite-explorer.app`).
-
-```bash
-make build
-```
 
 ## Project layout
 
