@@ -18,6 +18,10 @@ export function GetTableRowCount(arg1) {
   return window['go']['backend']['App']['GetTableRowCount'](arg1);
 }
 
+export function GetTableRows(arg1) {
+  return window['go']['backend']['App']['GetTableRows'](arg1);
+}
+
 export function OpenDatabase() {
   return window['go']['backend']['App']['OpenDatabase']();
 }

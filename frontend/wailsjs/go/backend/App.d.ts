@@ -10,6 +10,8 @@ export function GetSchema():Promise<model.SchemaInfo>;
 
 export function GetTableRowCount(arg1:string):Promise<number>;
 
+export function GetTableRows(arg1:model.TableRowsRequest):Promise<model.TableRowsResponse>;
+
 export function OpenDatabase():Promise<model.DatabaseInfo>;
 
 export function OpenDatabasePath(arg1:string):Promise<model.DatabaseInfo>;

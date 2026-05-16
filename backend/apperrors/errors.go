@@ -13,6 +13,8 @@ const (
 	CodeNotSQLite     Code = "NOT_SQLITE"
 	CodePermission    Code = "PERMISSION_DENIED"
 	CodeCancelled     Code = "CANCELLED"
+	CodeUnknownTable  Code = "UNKNOWN_TABLE"
+	CodeInvalidColumn Code = "INVALID_COLUMN"
 )
 
 // Error is a user-facing error with a stable code.

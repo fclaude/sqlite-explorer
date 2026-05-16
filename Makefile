@@ -1,4 +1,4 @@
-.PHONY: build run dev vet test frontend-test frontend-build doctor install-deps
+.PHONY: build run dev vet test frontend-test frontend-build doctor install-deps gen-big-db
 
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
@@ -38,3 +38,6 @@ doctor:
 
 install-deps:
 	cd frontend && npm install
+
+gen-big-db:
+	go run scripts/gen_big_db.go -rows 1000000 -out /tmp/sqlite-explorer-big.db

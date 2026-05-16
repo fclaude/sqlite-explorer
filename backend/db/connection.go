@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"sync"
 
 	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 	"fmt"
@@ -18,12 +19,19 @@ import (
 // Driver is the database/sql driver name registered by modernc.org/sqlite.
 const Driver = "sqlite"
 
+type countCacheKey struct {
+	table  string
+	filter string
+}
+
 // DB wraps a read-only SQLite connection to a single database file.
 type DB struct {
-	sql      *sql.DB
-	path     string
-	readOnly bool
-	openedAt time.Time
+	sql           *sql.DB
+	path          string
+	readOnly      bool
+	openedAt      time.Time
+	rowCountCache map[countCacheKey]int64
+	countMu       sync.RWMutex
 }
 
 // Open opens a SQLite database at path. When readOnly is true, the connection uses
@@ -60,10 +68,11 @@ func Open(path string, readOnly bool) (*DB, error) {
 	}
 
 	return &DB{
-		sql:      sqlDB,
-		path:     absPath,
-		readOnly: readOnly,
-		openedAt: time.Now(),
+		sql:           sqlDB,
+		path:          absPath,
+		readOnly:      readOnly,
+		openedAt:      time.Now(),
+		rowCountCache: make(map[countCacheKey]int64),
 	}, nil
 }
 

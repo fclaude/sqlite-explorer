@@ -1,5 +1,19 @@
 export namespace model {
 	
+	export class CellValue {
+	    kind: string;
+	    value: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new CellValue(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.value = source["value"];
+	    }
+	}
 	export class ColumnInfo {
 	    name: string;
 	    type: string;
@@ -18,6 +32,20 @@ export namespace model {
 	        this.notNull = source["notNull"];
 	        this.defaultValue = source["defaultValue"];
 	        this.primaryKey = source["primaryKey"];
+	    }
+	}
+	export class ColumnResult {
+	    name: string;
+	    type: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ColumnResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
 	    }
 	}
 	export class DatabaseInfo {
@@ -278,6 +306,70 @@ export namespace model {
 	}
 	
 	
+	export class TableRowsRequest {
+	    table: string;
+	    pageSize: number;
+	    page: number;
+	    sortColumn: string;
+	    sortDesc: boolean;
+	    filter: string;
+	    withTotal: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TableRowsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.table = source["table"];
+	        this.pageSize = source["pageSize"];
+	        this.page = source["page"];
+	        this.sortColumn = source["sortColumn"];
+	        this.sortDesc = source["sortDesc"];
+	        this.filter = source["filter"];
+	        this.withTotal = source["withTotal"];
+	    }
+	}
+	export class TableRowsResponse {
+	    columns: ColumnResult[];
+	    rows: CellValue[][];
+	    page: number;
+	    pageSize: number;
+	    totalRows?: number;
+	    durationMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TableRowsResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = this.convertValues(source["columns"], ColumnResult);
+	        this.rows = this.convertValues(source["rows"], CellValue);
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalRows = source["totalRows"];
+	        this.durationMs = source["durationMs"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 
 }

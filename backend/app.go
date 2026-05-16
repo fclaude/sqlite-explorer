@@ -105,6 +105,14 @@ func (a *App) GetSchema() (model.SchemaInfo, error) {
 	return schema, nil
 }
 
+// GetTableRows returns a paginated page of rows for a table or view.
+func (a *App) GetTableRows(req model.TableRowsRequest) (model.TableRowsResponse, error) {
+	if a.db == nil {
+		return model.TableRowsResponse{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	}
+	return a.db.GetTableRows(context.Background(), req)
+}
+
 // GetTableRowCount returns an exact row count for a table or view (lazy, on demand).
 func (a *App) GetTableRowCount(table string) (int64, error) {
 	if a.db == nil {

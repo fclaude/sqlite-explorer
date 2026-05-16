@@ -11,6 +11,7 @@ interface AppContextValue {
     setSidebarWidth: (width: number) => void;
     toggleGroup: (group: string) => void;
     clearError: () => void;
+    reportTableQuery: (durationMs: number, pageInfo: string | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -67,6 +68,11 @@ export function AppProvider({children}: {children: ReactNode}) {
         dispatch({type: 'CLEAR_ERROR'});
     }, []);
 
+    const reportTableQuery = useCallback((durationMs: number, pageInfo: string | null) => {
+        dispatch({type: 'SET_QUERY_DURATION', ms: durationMs});
+        dispatch({type: 'SET_PAGE_INFO', info: pageInfo});
+    }, []);
+
     const value = useMemo(
         () => ({
             state,
@@ -77,8 +83,9 @@ export function AppProvider({children}: {children: ReactNode}) {
             setSidebarWidth,
             toggleGroup,
             clearError,
+            reportTableQuery,
         }),
-        [state, openDatabase, closeDatabase, selectObject, setTab, setSidebarWidth, toggleGroup, clearError],
+        [state, openDatabase, closeDatabase, selectObject, setTab, setSidebarWidth, toggleGroup, clearError, reportTableQuery],
     );
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,3 +1,124 @@
 .data-grid {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+    min-height: 0;
+}
+
+.data-grid-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    flex-shrink: 0;
+}
+
+.data-grid-title {
+    font-weight: 600;
+    color: #e8eef5;
+    margin-right: auto;
+}
+
+.data-grid-control {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: #8fa3bc;
+}
+
+.data-grid-input,
+.data-grid-select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+    background: #121a24;
+    color: #e8eef5;
+    font-size: 0.85rem;
+}
+
+.data-grid-input {
+    min-width: 180px;
+}
+
+.data-grid-pager {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.data-grid-page-label {
+    font-size: 0.85rem;
+    color: #b8c5d6;
+    min-width: 6rem;
+    text-align: center;
+}
+
+.data-grid-error {
+    color: #e8a0a0;
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+}
+
+.data-grid-loading {
+    color: #9ec9a8;
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+}
+
+.data-grid-table-wrap {
+    flex: 1;
+    overflow: auto;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+}
+
+.data-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.data-grid-table th,
+.data-grid-table td {
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid #2d3a4d;
+    text-align: left;
+    white-space: nowrap;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.data-grid-table th {
+    position: sticky;
+    top: 0;
+    background: #1b2636;
+    z-index: 1;
+}
+
+.data-grid-sort-btn {
+    border: none;
+    background: transparent;
+    color: #c5d4e8;
+    cursor: pointer;
+    font-size: inherit;
+    font-weight: 600;
+    padding: 0;
+}
+
+.data-grid-sort-btn:hover {
+    color: #e8eef5;
+}
+
+.data-grid-empty-row {
+    text-align: center;
+    color: #8fa3bc;
+    padding: 1rem;
+}
+
+.cell-blob {
+    color: #9ec9a8;
+    font-family: ui-monospace, monospace;
 }
