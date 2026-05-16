@@ -3,21 +3,107 @@
     flex-direction: column;
     gap: 0.75rem;
     height: 100%;
+    min-height: 0;
+}
+
+.sql-editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.sql-editor-hint {
+    font-size: 0.8rem;
+    color: #6b829c;
+}
+
+.sql-history-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: #8fa3bc;
+    margin-left: auto;
+}
+
+.sql-history-select {
+    max-width: 280px;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+    background: #121a24;
+    color: #e8eef5;
+    font-size: 0.8rem;
 }
 
 .sql-textarea {
-    flex: 1;
-    min-height: 200px;
+    flex-shrink: 0;
+    min-height: 140px;
+    max-height: 200px;
     padding: 0.75rem;
     border: 1px solid #2d3a4d;
     border-radius: 4px;
     background: #121a24;
-    color: #b8c5d6;
+    color: #e8eef5;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.85rem;
-    resize: none;
+    resize: vertical;
 }
 
-.sql-textarea:disabled {
-    opacity: 0.6;
+.sql-status {
+    margin: 0;
+    color: #9ec9a8;
+    font-size: 0.85rem;
+}
+
+.sql-error {
+    margin: 0;
+    color: #e8a0a0;
+    font-size: 0.85rem;
+}
+
+.sql-truncated {
+    margin: 0;
+    color: #d4b896;
+    font-size: 0.85rem;
+}
+
+.sql-results-wrap {
+    flex: 1;
+    overflow: auto;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+    min-height: 0;
+}
+
+.sql-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.sql-results-table th,
+.sql-results-table td {
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid #2d3a4d;
+    text-align: left;
+    white-space: nowrap;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sql-results-table th {
+    position: sticky;
+    top: 0;
+    background: #1b2636;
+    z-index: 1;
+}
+
+.sql-empty-row {
+    text-align: center;
+    color: #8fa3bc;
+    padding: 1rem;
 }

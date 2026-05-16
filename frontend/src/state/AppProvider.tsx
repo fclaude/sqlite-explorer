@@ -1,5 +1,6 @@
 import {createContext, ReactNode, useCallback, useContext, useMemo, useReducer} from 'react';
 import {formatAPIError, WailsAPI} from '../api';
+import {clearQueryHistory} from './history';
 import {appReducer, AppState, initialState, SelectedObject} from './types';
 
 interface AppContextValue {
@@ -36,6 +37,7 @@ export function AppProvider({children}: {children: ReactNode}) {
         dispatch({type: 'SET_LOADING', loading: true});
         try {
             await WailsAPI.closeDatabase();
+            clearQueryHistory();
             dispatch({type: 'CLEAR_DB'});
         } catch (err) {
             const {message, detail} = formatAPIError(err);

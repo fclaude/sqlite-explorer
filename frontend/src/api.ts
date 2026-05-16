@@ -4,6 +4,7 @@ import {
     GetSchema,
     GetTableRows,
     OpenDatabase,
+    RunQuery,
 } from '../wailsjs/go/backend/App';
 import {model} from '../wailsjs/go/models';
 /** Typed wrapper over Wails-generated bindings. Components must use this, not wailsjs directly. */
@@ -26,6 +27,10 @@ export const WailsAPI = {
 
     getTableRows(req: model.TableRowsRequest): Promise<model.TableRowsResponse> {
         return GetTableRows(req);
+    },
+
+    runQuery(req: model.QueryRequest): Promise<model.QueryResponse> {
+        return RunQuery(req);
     },
 };
 

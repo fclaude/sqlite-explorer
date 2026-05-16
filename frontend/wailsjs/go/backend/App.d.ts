@@ -15,3 +15,5 @@ export function GetTableRows(arg1:model.TableRowsRequest):Promise<model.TableRow
 export function OpenDatabase():Promise<model.DatabaseInfo>;
 
 export function OpenDatabasePath(arg1:string):Promise<model.DatabaseInfo>;
+
+export function RunQuery(arg1:model.QueryRequest):Promise<model.QueryResponse>;

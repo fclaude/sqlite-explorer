@@ -21,12 +21,12 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 | 3 | Schema introspection | Done | agent | 2026-05-15 |
 | 4 | Frontend shell, sidebar, status bar | Done | agent | 2026-05-15 |
 | 5 | Table data browser | Done | agent | 2026-05-15 |
-| 6 | SQL query runner + read-only enforcement | Not started | — | — |
+| 6 | SQL query runner + read-only enforcement | Done | agent | 2026-05-15 |
 | 7 | CSV export | Not started | — | — |
 | 8 | UX polish, error handling, performance caps | Not started | — | — |
 | 9 | Tests, sample DB, README, build | Not started | — | — |
 
-Overall completion: 5 / 9 stages.
+Overall completion: 6 / 9 stages.
 
 ---
 
@@ -136,19 +136,19 @@ Row count cached per (table, filter). BLOB cells show `<BLOB N bytes>` with hex 
 
 **Goal.** SQL editor + result grid + read-only validator + per-session history.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] Validator and read-only DSN both block writes.
-- [ ] `MaxQueryRows` and `DefaultQueryTimeout` enforced.
-- [ ] Errors surfaced cleanly in UI (no stack traces).
-- [ ] `TestReadOnlyValidator`, `TestRunQuery_BlocksWriteEvenIfValidatorBypassed`, `TestRunQuery_TimesOut`, `TestRunQuery_Truncation`, `TestRunQuery_ColumnOrderStable`, `TestRunQuery_AllValueKinds` green.
+- [x] Validator and read-only DSN both block writes.
+- [x] `MaxQueryRows` and `DefaultQueryTimeout` enforced.
+- [x] Errors surfaced cleanly in UI (no stack traces).
+- [x] `TestReadOnlyValidator`, `TestRunQuery_BlocksWriteEvenIfValidatorBypassed`, `TestRunQuery_TimesOut`, `TestRunQuery_Truncation`, `TestRunQuery_ColumnOrderStable`, `TestRunQuery_AllValueKinds` green.
 
 **Notes.**
-_None._
+SqlEditor with Cmd/Ctrl+Enter, history dropdown (last 10), truncation banner. Validator blocks chained statements.
 
 ---
 
@@ -229,6 +229,7 @@ _None._
 
 Append a one-line entry whenever a stage's status changes. Newest entries at the top.
 
+- 2026-05-15 — Stage 6 -> Done. RunQuery, read-only validator, SqlEditor, query history.
 - 2026-05-15 — Stage 5 -> Done. GetTableRows pagination/sort/filter, DataGrid UI, backend tests.
 - 2026-05-15 — Stage 4 -> Done. Three-pane shell, Sidebar, StatusBar, tabs, api.ts, component tests.
 - 2026-05-15 — Stage 3 -> Done. GetSchema, GetTableRowCount, PRAGMA introspection, fixture tests.

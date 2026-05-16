@@ -38,3 +38,17 @@ type TableRowsResponse struct {
 	TotalRows  *int64         `json:"totalRows,omitempty"`
 	DurationMs int64          `json:"durationMs"`
 }
+
+// QueryRequest runs arbitrary read-only SQL.
+type QueryRequest struct {
+	SQL string `json:"sql"`
+}
+
+// QueryResponse holds arbitrary query results.
+type QueryResponse struct {
+	Columns    []ColumnResult `json:"columns"`
+	Rows       [][]CellValue  `json:"rows"`
+	RowCount   int            `json:"rowCount"`
+	Truncated  bool           `json:"truncated"`
+	DurationMs int64          `json:"durationMs"`
+}

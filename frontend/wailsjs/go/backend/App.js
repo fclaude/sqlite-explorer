@@ -29,3 +29,7 @@ export function OpenDatabase() {
 export function OpenDatabasePath(arg1) {
   return window['go']['backend']['App']['OpenDatabasePath'](arg1);
 }
+
+export function RunQuery(arg1) {
+  return window['go']['backend']['App']['RunQuery'](arg1);
+}

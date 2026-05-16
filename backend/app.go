@@ -105,6 +105,14 @@ func (a *App) GetSchema() (model.SchemaInfo, error) {
 	return schema, nil
 }
 
+// RunQuery executes read-only SQL and returns results.
+func (a *App) RunQuery(req model.QueryRequest) (model.QueryResponse, error) {
+	if a.db == nil {
+		return model.QueryResponse{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	}
+	return a.db.RunQuery(context.Background(), req.SQL)
+}
+
 // GetTableRows returns a paginated page of rows for a table or view.
 func (a *App) GetTableRows(req model.TableRowsRequest) (model.TableRowsResponse, error) {
 	if a.db == nil {

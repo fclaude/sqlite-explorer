@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -16,10 +17,12 @@ import (
 )
 
 const (
-	defaultPageSize   = 100
-	maxBlobPreview    = 64
-	jsMaxSafeInteger  = 9007199254740991
-	tableQueryTimeout = 30 * time.Second
+	defaultPageSize     = 100
+	maxBlobPreview      = 64
+	jsMaxSafeInteger    = 9007199254740991
+	tableQueryTimeout   = 30 * time.Second
+	MaxQueryRows        = 1000
+	DefaultQueryTimeout = 30 * time.Second
 )
 
 var allowedPageSizes = map[int]bool{50: true, 100: true, 500: true, 1000: true}
@@ -323,6 +326,84 @@ func coerceBlob(b []byte) model.CellValue {
 			Size: n,
 		},
 	}
+}
+
+// RunQuery executes validated read-only SQL and returns up to MaxQueryRows rows.
+func (d *DB) RunQuery(ctx context.Context, sql string) (model.QueryResponse, error) {
+	if err := ValidateReadOnlySQL(sql); err != nil {
+		return model.QueryResponse{}, err
+	}
+	return d.runQuery(ctx, sql)
+}
+
+func (d *DB) runQuery(ctx context.Context, sql string) (model.QueryResponse, error) {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(ctx, DefaultQueryTimeout)
+	defer cancel()
+
+	rows, err := d.sql.QueryContext(ctx, sql)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || ctx.Err() == context.DeadlineExceeded {
+			return model.QueryResponse{}, apperrors.New(apperrors.CodeTimeout, "Query timed out.", "")
+		}
+		return model.QueryResponse{}, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	colNames, err := rows.Columns()
+	if err != nil {
+		return model.QueryResponse{}, err
+	}
+	colTypes, _ := rows.ColumnTypes()
+
+	resultCols := make([]model.ColumnResult, len(colNames))
+	for i, name := range colNames {
+		typ := ""
+		if i < len(colTypes) && colTypes[i] != nil {
+			typ = colTypes[i].DatabaseTypeName()
+		}
+		resultCols[i] = model.ColumnResult{Name: name, Type: typ}
+	}
+
+	var result [][]model.CellValue
+	truncated := false
+	for rows.Next() {
+		if len(result) >= MaxQueryRows {
+			truncated = true
+			break
+		}
+		dest := make([]any, len(colNames))
+		ptrs := make([]any, len(colNames))
+		for i := range dest {
+			ptrs[i] = &dest[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return model.QueryResponse{}, err
+		}
+		row := make([]model.CellValue, len(colNames))
+		for i := range colNames {
+			typ := ""
+			if i < len(colTypes) && colTypes[i] != nil {
+				typ = colTypes[i].DatabaseTypeName()
+			}
+			row[i] = coerceValue(dest[i], typ)
+		}
+		result = append(result, row)
+	}
+	if err := rows.Err(); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || ctx.Err() == context.DeadlineExceeded {
+			return model.QueryResponse{}, apperrors.New(apperrors.CodeTimeout, "Query timed out.", "")
+		}
+		return model.QueryResponse{}, err
+	}
+
+	return model.QueryResponse{
+		Columns:    resultCols,
+		Rows:       result,
+		RowCount:   len(result),
+		Truncated:  truncated,
+		DurationMs: time.Since(start).Milliseconds(),
+	}, nil
 }
 
 // FormatCellDisplay returns a human-readable cell string for the UI.
