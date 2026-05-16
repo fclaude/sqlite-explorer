@@ -1,0 +1,24 @@
+---
+description: When the user asks to take one step, advance exactly one stage from agent_prompt.md using progress.md as the tracker.
+alwaysApply: true
+---
+
+# One step at a time
+
+When the user asks to **take 1 step**, **take one step**, **next step**, or similar:
+
+1. **Read** [`agent_prompt.md`](agent_prompt.md) and [`progress.md`](progress.md) before writing code.
+2. **Determine the next pending stage** — the lowest-numbered stage in `progress.md` whose status is not `Done` (prefer `In progress` if one exists; otherwise the first `Not started`).
+3. **Execute only that stage** — implement its scope and implementation notes from `agent_prompt.md`. Do not start the following stage in the same turn unless the user explicitly asks for more.
+4. **Validate** using that stage's automated and manual criteria from `agent_prompt.md`. Run the listed commands (`go test`, `wails build`, etc.) and fix failures before marking complete.
+5. **Update** [`progress.md`](progress.md):
+   - Set the stage status to `Done` (or `In progress` / `Blocked` with notes if not finished).
+   - Tick the stage's Definition of done checkboxes that passed.
+   - Update the at-a-glance table, overall completion count, and append a Changelog entry with date and outcome.
+6. **Report** what stage was completed, what was built, and which validation commands passed.
+
+If the user did not ask for a step, do not advance stages automatically.
+
+If a stage is blocked, say why in `progress.md` Notes and ask the user before skipping it.
+
+The plan in `agent_prompt.md` is the source of truth for requirements; `progress.md` is the source of truth for status.

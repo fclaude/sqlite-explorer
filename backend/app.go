@@ -1,0 +1,30 @@
+package backend
+
+import (
+	"context"
+	"fmt"
+
+	"sqlite-explorer/backend/db"
+)
+
+// App is the Wails-bound application backend.
+type App struct {
+	ctx context.Context
+}
+
+// NewApp creates a new App application struct.
+func NewApp() *App {
+	return &App{}
+}
+
+// Startup is called when the app starts. The context is saved
+// so we can call the runtime methods.
+func (a *App) Startup(ctx context.Context) {
+	a.ctx = ctx
+}
+
+// Greet returns a greeting for the given name (template placeholder).
+func (a *App) Greet(name string) string {
+	_ = db.Driver
+	return fmt.Sprintf("Hello %s, It's show time!", name)
+}

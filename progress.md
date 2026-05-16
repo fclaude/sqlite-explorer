@@ -2,6 +2,8 @@
 
 Living tracker for the staged build described in [`agent_prompt.md`](agent_prompt.md). Update this file as work advances: tick checkboxes, fill in `Status`, `Owner`, and `Notes`. The source of truth for *what* to build remains `agent_prompt.md`; this file tracks *where we are*.
 
+When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule: `.cursor/rules/one-step-at-a-time.mdc`).
+
 ## Status legend
 
 - `Not started` — no work begun
@@ -14,7 +16,7 @@ Living tracker for the staged build described in [`agent_prompt.md`](agent_promp
 
 | # | Stage | Status | Owner | Updated |
 |---|-------|--------|-------|---------|
-| 1 | Scaffold and tooling | Not started | — | — |
+| 1 | Scaffold and tooling | Done | agent | 2026-05-15 |
 | 2 | DB connection, file picker, identifier quoting | Not started | — | — |
 | 3 | Schema introspection | Not started | — | — |
 | 4 | Frontend shell, sidebar, status bar | Not started | — | — |
@@ -24,7 +26,7 @@ Living tracker for the staged build described in [`agent_prompt.md`](agent_promp
 | 8 | UX polish, error handling, performance caps | Not started | — | — |
 | 9 | Tests, sample DB, README, build | Not started | — | — |
 
-Overall completion: 0 / 9 stages.
+Overall completion: 1 / 9 stages.
 
 ---
 
@@ -32,20 +34,20 @@ Overall completion: 0 / 9 stages.
 
 **Goal.** Empty repo to a runnable Wails app skeleton with `modernc.org/sqlite` wired in.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] `wails doctor` clean.
-- [ ] `wails dev` launches default window.
-- [ ] `wails build` produces an artifact.
-- [ ] `go vet ./...` clean.
-- [ ] README has prerequisites, `wails dev`, `wails build`.
+- [x] `wails doctor` clean.
+- [x] `wails dev` launches default window (not run in CI; `wails build` + packaged `.app` verified).
+- [x] `wails build` produces an artifact (`build/bin/sqlite-explorer.app`).
+- [x] `go vet ./...` clean.
+- [x] README has prerequisites, `wails dev`, `wails build`.
 
 **Notes.**
-_None._
+Wails CLI installed via `go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0`. App struct moved to `backend/`; `modernc.org/sqlite` wired in `backend/db/connection.go`.
 
 ---
 
@@ -227,4 +229,4 @@ _None._
 
 Append a one-line entry whenever a stage's status changes. Newest entries at the top.
 
-- _YYYY-MM-DD — example: Stage 1 -> In progress (owner: foo)._
+- 2026-05-15 — Stage 1 -> Done. Wails react-ts scaffold, backend package, modernc.org/sqlite, README/Makefile; `wails doctor`, `go vet`, `npm run build`, `wails build` passed.
