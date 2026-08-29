@@ -56,7 +56,7 @@ make run            # build and launch the current-platform app
 
 Release binary: `build/bin/sqlite-explorer` (macOS: `build/bin/sqlite-explorer.app`).
 
-Linux publishing produces both a `.deb` with GTK/WebKit runtime dependencies and a portable `.tar.gz`. macOS publishing produces a universal, ad-hoc-signed `.dmg` without Apple notarization; Gatekeeper may require users to approve it through Privacy & Security. Tagging `v0.1.0` runs the release workflow; details and the release checklist are in [`docs/RELEASING.md`](docs/RELEASING.md).
+Linux publishing produces `.deb` and Fedora-compatible `.rpm` packages with GTK/WebKit runtime dependencies, plus a portable `.tar.gz`. Releases also include tracked-source snapshots named `sqlite-explorer-VERSION.src.tar.gz` and `sqlite-explorer-VERSION.src.zip`. macOS publishing produces a universal, ad-hoc-signed `.dmg` without Apple notarization; Gatekeeper may require users to approve it through Privacy & Security. Tagging a version such as `v0.1.1` runs the release workflow; details and the release checklist are in [`docs/RELEASING.md`](docs/RELEASING.md).
 
 SQLite Explorer is available under the [MIT License](LICENSE).
 

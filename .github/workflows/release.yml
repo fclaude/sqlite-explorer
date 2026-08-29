@@ -42,7 +42,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install build and packaging dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential dpkg-dev pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential dpkg-dev rpm unzip pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
       - name: Install locked frontend dependencies
         working-directory: frontend
         run: npm ci
@@ -51,9 +51,16 @@ jobs:
       - name: Build Linux binary
         run: wails build -clean -trimpath -m -platform linux/amd64
       - name: Build Linux packages
-        run: bash scripts/package_linux.sh "${{ needs.verify-version.outputs.version }}" amd64
+        run: |
+          bash scripts/package_linux.sh "${{ needs.verify-version.outputs.version }}" amd64
+          bash scripts/package_rpm.sh "${{ needs.verify-version.outputs.version }}" amd64
+          bash scripts/package_source.sh "${{ needs.verify-version.outputs.version }}" "$GITHUB_SHA"
       - name: Inspect Debian package
         run: dpkg-deb --info "build/release/sqlite-explorer_${{ needs.verify-version.outputs.version }}_amd64.deb" && dpkg-deb --contents "build/release/sqlite-explorer_${{ needs.verify-version.outputs.version }}_amd64.deb"
+      - name: Inspect RPM package
+        run: rpm -qip "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}-1.x86_64.rpm" && rpm -qlp "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}-1.x86_64.rpm"
+      - name: Inspect source archives
+        run: tar -tzf "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}.src.tar.gz" && unzip -t "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}.src.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: release-linux

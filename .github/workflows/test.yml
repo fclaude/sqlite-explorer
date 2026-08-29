@@ -74,7 +74,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential dpkg-dev rpm unzip pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
       - name: Install locked frontend dependencies
         working-directory: frontend
         run: npm ci
@@ -82,9 +82,25 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
       - name: Build package
         run: wails build -clean -trimpath -m -platform "${{ matrix.platform }}"
+      - name: Build Linux release packages
+        if: runner.os == 'Linux'
+        run: |
+          version="$(jq -r '.info.productVersion' wails.json)"
+          bash scripts/package_linux.sh "$version" amd64
+          bash scripts/package_rpm.sh "$version" amd64
+          bash scripts/package_source.sh "$version"
       - name: Validate Linux binary
         if: runner.os == 'Linux'
-        run: test -x build/bin/sqlite-explorer && file build/bin/sqlite-explorer
+        run: |
+          version="$(jq -r '.info.productVersion' wails.json)"
+          test -x build/bin/sqlite-explorer
+          file build/bin/sqlite-explorer
+          dpkg-deb --info "build/release/sqlite-explorer_${version}_amd64.deb"
+          rpm -qip "build/release/sqlite-explorer-${version}-1.x86_64.rpm"
+          rpm -qlp "build/release/sqlite-explorer-${version}-1.x86_64.rpm"
+          tar -tzf "build/release/sqlite-explorer-${version}-linux-amd64.tar.gz"
+          tar -tzf "build/release/sqlite-explorer-${version}.src.tar.gz"
+          unzip -t "build/release/sqlite-explorer-${version}.src.zip"
       - name: Validate macOS bundle
         if: runner.os == 'macOS'
         run: |
