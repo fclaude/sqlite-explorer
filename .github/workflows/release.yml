@@ -14,7 +14,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: version
         name: Match tag and package versions
         shell: bash
@@ -31,12 +31,12 @@ jobs:
     needs: verify-version
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -61,7 +61,7 @@ jobs:
         run: rpm -qip "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}-1.x86_64.rpm" && rpm -qlp "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}-1.x86_64.rpm"
       - name: Inspect source archives
         run: tar -tzf "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}.src.tar.gz" && unzip -t "build/release/sqlite-explorer-${{ needs.verify-version.outputs.version }}.src.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-linux
           path: build/release/*
@@ -71,12 +71,12 @@ jobs:
     needs: verify-version
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -103,7 +103,7 @@ jobs:
           hdiutil create -volname "SQLite Explorer" -srcfolder "$app" -ov -format UDZO "$dmg"
           codesign --force --sign - "$dmg"
           codesign --verify --verbose=2 "$dmg"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-macos
           path: build/release/*
@@ -118,7 +118,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release

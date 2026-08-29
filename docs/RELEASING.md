@@ -15,7 +15,7 @@ Do not describe this artifact as Developer ID-signed or notarized. If a Develope
 3. Confirm `info.productVersion` in `wails.json` and `version` in `frontend/package.json` are the same release version.
 4. Review user-facing behavior and update the README or release notes.
 5. Confirm the repository and all reachable Git history pass the secret scan. A deleted secret remains compromised until history is rewritten and the credential is rotated.
-6. Create and push an annotated tag matching the configured version, for example `git tag -a v0.1.1 -m "SQLite Explorer v0.1.1"`.
+6. Create and push an annotated tag matching the configured version, for example `git tag -a v0.1.2 -m "SQLite Explorer v0.1.2"`.
 
 Pushing the tag runs `.github/workflows/release.yml`. The workflow deliberately fails before publishing when the tag/version mismatch or a package cannot be validated.
 
