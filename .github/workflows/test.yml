@@ -27,6 +27,15 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test -- --run
+      - name: Frontend production build
+        working-directory: frontend
+        run: npm run build
       - name: Generate sample DB
         run: go run scripts/gen_sample_db.go
       - name: Verify sample DB is reproducible
@@ -37,15 +46,6 @@ jobs:
         run: go vet ./...
       - name: Go vulnerability scan
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-      - name: Frontend tests
-        working-directory: frontend
-        run: npm test -- --run
-      - name: Frontend production build
-        working-directory: frontend
-        run: npm run build
       - name: Frontend vulnerability audit
         working-directory: frontend
         run: npm audit --audit-level=low

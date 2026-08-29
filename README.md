@@ -115,9 +115,13 @@ Please report vulnerabilities through the repository's private security-advisory
 ## Tests
 
 ```bash
+cd frontend
+npm ci
+npm test -- --run
+npm run build
+npm audit --audit-level=low
+cd ..
 go test ./... -race -count=1
 go vet ./...
-cd frontend && npm test -- --run
-cd frontend && npm audit --audit-level=low
 wails build -clean -trimpath
 ```

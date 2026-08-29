@@ -34,7 +34,7 @@ dev:
 vet:
 	go vet ./...
 
-test:
+test: frontend-build
 	go test ./...
 
 frontend-test:
