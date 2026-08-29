@@ -1,7 +1,14 @@
-import {useCallback, useEffect, useState} from 'react';
-import {blobCellTooltip, formatAPIError, formatCellDisplay, model, WailsAPI} from '../api';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {formatAPIError, model, WailsAPI} from '../api';
+import {useDebouncedLoading} from '../hooks/useDebouncedLoading';
 import {useApp} from '../state/AppProvider';
 import {addQueryHistory, getQueryHistory} from '../state/history';
+import {CellDetailContext, RecordRowContext} from '../utils/cellDetail';
+import {CellDetailModal} from './CellDetailModal';
+import {RecordDetailModal} from './RecordDetailModal';
+import {GridCell} from './GridCell';
+import {LoadingOverlay} from './LoadingOverlay';
+import './DetailModal.css';
 import './SqlEditor.css';
 
 interface SqlEditorProps {
@@ -17,6 +24,10 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
     const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [history, setHistory] = useState<string[]>([]);
+    const runRef = useRef(0);
+    const showLoading = useDebouncedLoading(loading);
+    const [cellDetail, setCellDetail] = useState<CellDetailContext | null>(null);
+    const [recordDetail, setRecordDetail] = useState<RecordRowContext | null>(null);
 
     const refreshHistory = useCallback(() => {
         setHistory(getQueryHistory());
@@ -31,11 +42,15 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
         if (!text) {
             return;
         }
+        const runId = ++runRef.current;
         setLoading(true);
         setError(null);
         clearError();
         try {
             const resp = await WailsAPI.runQuery({sql: text});
+            if (runId !== runRef.current) {
+                return;
+            }
             setResult(resp);
             addQueryHistory(text);
             refreshHistory();
@@ -43,16 +58,30 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
             reportTableQuery(
                 resp.durationMs ?? 0,
                 `${resp.rowCount ?? 0} rows${trunc} | ${resp.durationMs ?? 0}ms`,
+                !!resp.truncated,
             );
         } catch (err) {
+            if (runId !== runRef.current) {
+                return;
+            }
             const {message} = formatAPIError(err);
             setError(message);
             setResult(null);
-            reportTableQuery(0, null);
+            reportTableQuery(0, null, false);
         } finally {
-            setLoading(false);
+            if (runId === runRef.current) {
+                setLoading(false);
+            }
         }
     }, [sql, clearError, reportTableQuery, refreshHistory]);
+
+    const cancelQuery = useCallback(async () => {
+        try {
+            await WailsAPI.cancelQuery(0);
+        } catch {
+            // ignore cancel errors
+        }
+    }, []);
 
     const exportCSV = async () => {
         const text = sql.trim();
@@ -76,6 +105,45 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
         }
     };
 
+    const buildRecordContext = (rowIndex: number, cells: model.CellValue[]): RecordRowContext | null => {
+        if (!result?.columns) {
+            return null;
+        }
+        return {
+            source: 'query',
+            rowIndex,
+            columns: result.columns,
+            cells,
+        };
+    };
+
+    const openCellDetail = (rowIndex: number, columnIndex: number) => {
+        if (!result?.columns || !result.rows?.[rowIndex]) {
+            return;
+        }
+        const col = result.columns[columnIndex];
+        setCellDetail({
+            source: 'query',
+            rowIndex,
+            columns: result.columns,
+            cells: result.rows[rowIndex],
+            columnIndex,
+            columnName: col.name,
+            cell: result.rows[rowIndex][columnIndex],
+        });
+    };
+
+    const openRecordDetail = (rowIndex: number) => {
+        const row = result?.rows?.[rowIndex];
+        if (!row) {
+            return;
+        }
+        const ctx = buildRecordContext(rowIndex, row);
+        if (ctx) {
+            setRecordDetail(ctx);
+        }
+    };
+
     if (!hasDatabase) {
         return (
             <div className="panel-empty">
@@ -89,10 +157,18 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
     }
 
     return (
-        <div className="sql-editor">
+        <div className="sql-editor panel-with-overlay">
             <div className="sql-editor-toolbar">
                 <button type="button" className="btn btn-primary" onClick={runQuery} disabled={loading}>
                     Run query
+                </button>
+                <button
+                    type="button"
+                    className="btn"
+                    onClick={cancelQuery}
+                    disabled={!loading}
+                >
+                    Cancel
                 </button>
                 <button
                     type="button"
@@ -134,46 +210,91 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
                 placeholder="SELECT * FROM ..."
                 spellCheck={false}
             />
-            {loading && <p className="sql-status">Running...</p>}
-            {error && <p className="sql-error">{error}</p>}
+            {error && <p className="sql-error" role="alert">{error}</p>}
             {result?.truncated && (
                 <p className="sql-truncated">Showing first {result.rowCount} rows (limit 1000).</p>
             )}
-            {result && result.columns && result.columns.length > 0 && (
-                <div className="sql-results-wrap">
-                    <table className="sql-results-table">
-                        <thead>
-                            <tr>
-                                {result.columns.map((col) => (
-                                    <th key={col.name}>{col.name}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {result.rows?.length === 0 && (
+            <div className="sql-results-area">
+                {showLoading && <LoadingOverlay label="Running query..." />}
+                {result && result.columns && result.columns.length > 0 && (
+                    <div className="sql-results-wrap">
+                        <table className="sql-results-table">
+                            <thead>
                                 <tr>
-                                    <td colSpan={result.columns.length} className="sql-empty-row">
-                                        No rows returned.
-                                    </td>
-                                </tr>
-                            )}
-                            {result.rows?.map((row, ri) => (
-                                <tr key={ri}>
-                                    {row.map((cell, ci) => (
-                                        <td
-                                            key={ci}
-                                            title={blobCellTooltip(cell)}
-                                            className={cell.kind === 'blob' ? 'cell-blob' : undefined}
-                                        >
-                                            {formatCellDisplay(cell)}
-                                        </td>
+                                    <th className="data-grid-row-num" scope="col" aria-label="Row" />
+                                    {result.columns.map((col) => (
+                                        <th key={col.name}>{col.name}</th>
                                     ))}
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                            </thead>
+                            <tbody>
+                                {result.rows?.length === 0 && (
+                                    <tr>
+                                        <td colSpan={result.columns.length + 1} className="sql-empty-row">
+                                            No rows returned.
+                                        </td>
+                                    </tr>
+                                )}
+                                {result.rows?.map((row, ri) => (
+                                    <tr
+                                        key={ri}
+                                        onDoubleClick={() => openRecordDetail(ri)}
+                                        title="Double-click to view full row"
+                                    >
+                                        <td className="data-grid-row-num">
+                                            <button
+                                                type="button"
+                                                className="data-grid-row-btn"
+                                                onClick={() => openRecordDetail(ri)}
+                                                title="View full row"
+                                            >
+                                                {ri + 1}
+                                            </button>
+                                        </td>
+                                        {row.map((cell, ci) => (
+                                            <td key={ci}>
+                                                <GridCell cell={cell} onOpen={() => openCellDetail(ri, ci)} />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            <CellDetailModal
+                context={cellDetail}
+                onClose={() => setCellDetail(null)}
+                onViewRow={
+                    cellDetail
+                        ? () => {
+                              const ctx = buildRecordContext(cellDetail.rowIndex, cellDetail.cells);
+                              setCellDetail(null);
+                              if (ctx) {
+                                  setRecordDetail(ctx);
+                              }
+                          }
+                        : undefined
+                }
+            />
+            <RecordDetailModal
+                context={recordDetail}
+                onClose={() => setRecordDetail(null)}
+                onOpenCell={(columnIndex) => {
+                    if (!recordDetail) {
+                        return;
+                    }
+                    setRecordDetail(null);
+                    setCellDetail({
+                        ...recordDetail,
+                        columnIndex,
+                        columnName: recordDetail.columns[columnIndex].name,
+                        cell: recordDetail.cells[columnIndex],
+                    });
+                }}
+            />
         </div>
     );
 }

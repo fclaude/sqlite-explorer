@@ -1,13 +1,13 @@
 export namespace model {
-	
+
 	export class CellValue {
 	    kind: string;
 	    value: any;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new CellValue(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.kind = source["kind"];
@@ -20,11 +20,11 @@ export namespace model {
 	    notNull: boolean;
 	    defaultValue?: string;
 	    primaryKey: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ColumnInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -37,26 +37,42 @@ export namespace model {
 	export class ColumnResult {
 	    name: string;
 	    type: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ColumnResult(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.type = source["type"];
 	    }
 	}
+	export class ColumnUpdate {
+	    column: string;
+	    text: string;
+	    isNull: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new ColumnUpdate(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.column = source["column"];
+	        this.text = source["text"];
+	        this.isNull = source["isNull"];
+	    }
+	}
 	export class DatabaseInfo {
 	    path: string;
 	    sizeBytes: number;
 	    readOnly: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new DatabaseInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -72,11 +88,11 @@ export namespace model {
 	    sortDesc: boolean;
 	    filter: string;
 	    withTotal: boolean;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new TableRowsRequest(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.table = source["table"];
@@ -90,22 +106,20 @@ export namespace model {
 	}
 	export class ExportRequest {
 	    source: string;
-	    path: string;
 	    tableRows: TableRowsRequest;
 	    sql: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ExportRequest(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.source = source["source"];
-	        this.path = source["path"];
 	        this.tableRows = this.convertValues(source["tableRows"], TableRowsRequest);
 	        this.sql = source["sql"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -133,11 +147,11 @@ export namespace model {
 	    onUpdate: string;
 	    onDelete: string;
 	    match: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ForeignKeyInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -153,11 +167,11 @@ export namespace model {
 	export class IndexColumnInfo {
 	    name: string;
 	    collSeq?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new IndexColumnInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -170,11 +184,11 @@ export namespace model {
 	    unique: boolean;
 	    sql: string;
 	    columns: IndexColumnInfo[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new IndexInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -183,7 +197,7 @@ export namespace model {
 	        this.sql = source["sql"];
 	        this.columns = this.convertValues(source["columns"], IndexColumnInfo);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -202,13 +216,57 @@ export namespace model {
 		    return a;
 		}
 	}
+	export class ObjectStats {
+	    name: string;
+	    kind: string;
+	    sql?: string;
+	    rowCount: number;
+	    columnCount: number;
+	    indexCount: number;
+	    foreignKeyCount: number;
+	    triggerCount: number;
+	    primaryKeyColumns: string[];
+	    withoutRowId: boolean;
+	    estimatedRowCount?: number;
+	    storageBytes?: number;
+	    databaseFileBytes: number;
+	    databasePageCount: number;
+	    databasePageSize: number;
+	    databaseUsedBytes: number;
+	    durationMs: number;
+
+	    static createFrom(source: any = {}) {
+	        return new ObjectStats(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.sql = source["sql"];
+	        this.rowCount = source["rowCount"];
+	        this.columnCount = source["columnCount"];
+	        this.indexCount = source["indexCount"];
+	        this.foreignKeyCount = source["foreignKeyCount"];
+	        this.triggerCount = source["triggerCount"];
+	        this.primaryKeyColumns = source["primaryKeyColumns"];
+	        this.withoutRowId = source["withoutRowId"];
+	        this.estimatedRowCount = source["estimatedRowCount"];
+	        this.storageBytes = source["storageBytes"];
+	        this.databaseFileBytes = source["databaseFileBytes"];
+	        this.databasePageCount = source["databasePageCount"];
+	        this.databasePageSize = source["databasePageSize"];
+	        this.databaseUsedBytes = source["databaseUsedBytes"];
+	        this.durationMs = source["durationMs"];
+	    }
+	}
 	export class QueryRequest {
 	    sql: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new QueryRequest(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.sql = source["sql"];
@@ -220,11 +278,12 @@ export namespace model {
 	    rowCount: number;
 	    truncated: boolean;
 	    durationMs: number;
-	
+	    queryId: number;
+
 	    static createFrom(source: any = {}) {
 	        return new QueryResponse(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.columns = this.convertValues(source["columns"], ColumnResult);
@@ -232,8 +291,9 @@ export namespace model {
 	        this.rowCount = source["rowCount"];
 	        this.truncated = source["truncated"];
 	        this.durationMs = source["durationMs"];
+	        this.queryId = source["queryId"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -256,11 +316,11 @@ export namespace model {
 	    name: string;
 	    table: string;
 	    sql: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new TriggerInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -272,18 +332,18 @@ export namespace model {
 	    name: string;
 	    sql: string;
 	    columns: ColumnInfo[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ViewInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.sql = source["sql"];
 	        this.columns = this.convertValues(source["columns"], ColumnInfo);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -308,11 +368,11 @@ export namespace model {
 	    origin: string;
 	    partial: boolean;
 	    columns: IndexColumnInfo[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new TableIndexRef(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -321,7 +381,7 @@ export namespace model {
 	        this.partial = source["partial"];
 	        this.columns = this.convertValues(source["columns"], IndexColumnInfo);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -346,11 +406,11 @@ export namespace model {
 	    columns: ColumnInfo[];
 	    foreignKeys: ForeignKeyInfo[];
 	    indexes: TableIndexRef[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new TableInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -359,7 +419,7 @@ export namespace model {
 	        this.foreignKeys = this.convertValues(source["foreignKeys"], ForeignKeyInfo);
 	        this.indexes = this.convertValues(source["indexes"], TableIndexRef);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -383,11 +443,11 @@ export namespace model {
 	    views: ViewInfo[];
 	    indexes: IndexInfo[];
 	    triggers: TriggerInfo[];
-	
+
 	    static createFrom(source: any = {}) {
 	        return new SchemaInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.tables = this.convertValues(source["tables"], TableInfo);
@@ -395,7 +455,7 @@ export namespace model {
 	        this.indexes = this.convertValues(source["indexes"], IndexInfo);
 	        this.triggers = this.convertValues(source["triggers"], TriggerInfo);
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -414,31 +474,35 @@ export namespace model {
 		    return a;
 		}
 	}
-	
-	
-	
+
+
+
 	export class TableRowsResponse {
 	    columns: ColumnResult[];
 	    rows: CellValue[][];
+	    rowIds?: string[];
+	    editable: boolean;
 	    page: number;
 	    pageSize: number;
 	    totalRows?: number;
 	    durationMs: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new TableRowsResponse(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.columns = this.convertValues(source["columns"], ColumnResult);
 	        this.rows = this.convertValues(source["rows"], CellValue);
+	        this.rowIds = source["rowIds"];
+	        this.editable = source["editable"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	        this.totalRows = source["totalRows"];
 	        this.durationMs = source["durationMs"];
 	    }
-	
+
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -457,7 +521,73 @@ export namespace model {
 		    return a;
 		}
 	}
-	
+
+	export class UpdateTableRowRequest {
+	    table: string;
+	    rowId: string;
+	    updates: ColumnUpdate[];
+
+	    static createFrom(source: any = {}) {
+	        return new UpdateTableRowRequest(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.table = source["table"];
+	        this.rowId = source["rowId"];
+	        this.updates = this.convertValues(source["updates"], ColumnUpdate);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UpdateTableRowResponse {
+	    columns: ColumnResult[];
+	    cells: CellValue[];
+
+	    static createFrom(source: any = {}) {
+	        return new UpdateTableRowResponse(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = this.convertValues(source["columns"], ColumnResult);
+	        this.cells = this.convertValues(source["cells"], CellValue);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 

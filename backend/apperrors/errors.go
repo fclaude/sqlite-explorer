@@ -18,6 +18,7 @@ const (
 	CodeReadOnlyViolation Code = "READ_ONLY_VIOLATION"
 	CodeTimeout           Code = "TIMEOUT"
 	CodeMalformedSQL      Code = "MALFORMED_SQL"
+	CodeNotEditable       Code = "NOT_EDITABLE"
 )
 
 // Error is a user-facing error with a stable code.
@@ -28,6 +29,11 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
+	return e.Message
+}
+
+// FullError returns code, message, and detail for logging.
+func (e *Error) FullError() string {
 	if e.Detail != "" {
 		return fmt.Sprintf("%s: %s (%s)", e.Code, e.Message, e.Detail)
 	}

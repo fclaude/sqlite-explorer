@@ -555,11 +555,11 @@ BEGIN
 END;
 
 INSERT INTO customers (id, name, email) VALUES
-    (1, 'Example Customer 001',   'customer001@example.invalid'),
-    (2, 'Example Customer 002',    'customer002@example.invalid'),
-    (3, 'Example Customer 003',   'customer003@example.invalid'),
-    (4, 'Example Customer 004','customer004@example.invalid'),
-    (5, 'Example Customer 005',   'customer005@example.invalid');
+    (1, 'Example Customer 001', 'customer001@example.invalid'),
+    (2, 'Example Customer 002', 'customer002@example.invalid'),
+    (3, 'Example Customer 003', 'customer003@example.invalid'),
+    (4, 'Example Customer 004', 'customer004@example.invalid'),
+    (5, 'Example Customer 005', 'customer005@example.invalid');
 
 INSERT INTO orders (id, customer_id, total_cents) VALUES
     (1, 1, 1299),

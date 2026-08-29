@@ -10,11 +10,11 @@ type SchemaInfo struct {
 
 // TableInfo describes a base table and its column/FK/index metadata.
 type TableInfo struct {
-	Name        string          `json:"name"`
-	SQL         string          `json:"sql"`
-	Columns     []ColumnInfo    `json:"columns"`
+	Name        string           `json:"name"`
+	SQL         string           `json:"sql"`
+	Columns     []ColumnInfo     `json:"columns"`
 	ForeignKeys []ForeignKeyInfo `json:"foreignKeys"`
-	Indexes     []TableIndexRef `json:"indexes"`
+	Indexes     []TableIndexRef  `json:"indexes"`
 }
 
 // ViewInfo describes a view and its columns.

@@ -3,6 +3,9 @@ import {model} from '../api';
 import {StatusState} from '../state/types';
 import './StatusBar.css';
 
+const TRUNCATION_DOCS =
+    'https://www.sqlite.org/limits.html — result sets are capped at 1000 rows for responsiveness.';
+
 interface StatusBarProps {
     dbInfo: model.DatabaseInfo | null;
     status: StatusState;
@@ -24,6 +27,17 @@ export function StatusBar({dbInfo, status, onClearError}: StatusBarProps) {
             <span className="status-segment status-page">
                 {status.pageInfo ?? 'Page: --'}
             </span>
+            {status.truncated && (
+                <a
+                    className="status-segment status-truncated"
+                    href={TRUNCATION_DOCS}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={TRUNCATION_DOCS}
+                >
+                    Showing first 1000 rows
+                </a>
+            )}
             <span className="status-segment status-error">
                 {status.lastError ? (
                     <>

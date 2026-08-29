@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
@@ -25,6 +26,9 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.Startup,
+		OnShutdown: func(_ context.Context) {
+			_ = app.CloseDatabase()
+		},
 		Bind: []interface{}{
 			app,
 		},

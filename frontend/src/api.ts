@@ -3,9 +3,12 @@ import {
     DatabaseInfo,
     GetSchema,
     GetTableRows,
+    GetObjectStats,
     OpenDatabase,
     ExportRowsToCSV,
     RunQuery,
+    CancelQuery,
+    UpdateTableRow,
 } from '../wailsjs/go/backend/App';
 import {model} from '../wailsjs/go/models';
 /** Typed wrapper over Wails-generated bindings. Components must use this, not wailsjs directly. */
@@ -30,23 +33,43 @@ export const WailsAPI = {
         return GetTableRows(req);
     },
 
+    getObjectStats(name: string): Promise<model.ObjectStats> {
+        return GetObjectStats(name);
+    },
+
     runQuery(req: model.QueryRequest): Promise<model.QueryResponse> {
         return RunQuery(req);
+    },
+
+    cancelQuery(queryId: number): Promise<void> {
+        return CancelQuery(queryId);
     },
 
     exportTablePage(tableRows: model.TableRowsRequest): Promise<void> {
         const req = new model.ExportRequest({
             source: 'tablePage',
-            path: '',
             tableRows: tableRows,
         });
         return ExportRowsToCSV(req);
     },
 
+    updateTableRow(params: {
+        table: string;
+        rowId: string;
+        updates: Array<{column: string; text: string; isNull: boolean}>;
+    }): Promise<model.UpdateTableRowResponse> {
+        return UpdateTableRow(
+            new model.UpdateTableRowRequest({
+                table: params.table,
+                rowId: params.rowId,
+                updates: params.updates.map((u) => new model.ColumnUpdate(u)),
+            }),
+        );
+    },
+
     exportQueryResult(sql: string): Promise<void> {
         const req = new model.ExportRequest({
             source: 'queryResult',
-            path: '',
             sql: sql,
         });
         return ExportRowsToCSV(req);
@@ -87,9 +110,12 @@ export function blobCellTooltip(cell: model.CellValue): string | undefined {
 
 export type {model};
 
+/** Maps Wails/Go errors to user-facing text (no stack traces). */
 export function formatAPIError(err: unknown): {message: string; detail: string} {
     if (err instanceof Error) {
-        return {message: err.message, detail: err.stack ?? ''};
+        const message = err.message.trim() || 'An unexpected error occurred.';
+        return {message, detail: ''};
     }
-    return {message: String(err), detail: ''};
+    const message = String(err).trim() || 'An unexpected error occurred.';
+    return {message, detail: ''};
 }

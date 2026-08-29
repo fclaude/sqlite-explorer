@@ -1,9 +1,21 @@
+.panel-with-overlay {
+    position: relative;
+    min-height: 0;
+}
+
 .sql-editor {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     height: 100%;
     min-height: 0;
+}
+
+.sql-results-area {
+    position: relative;
+    flex: 1;
+    min-height: 120px;
+    overflow: auto;
 }
 
 .sql-editor-toolbar {

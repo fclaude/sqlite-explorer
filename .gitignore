@@ -1,7 +1,29 @@
-build/bin
-node_modules
-frontend/dist
+# Build products and dependency caches
+build/bin/
+build/release/
+frontend/dist/
+frontend/node_modules/
+
+# OS/editor noise
 .DS_Store
 *.app
+
+# Local databases and their journals. Only deterministic test fixtures belong in Git.
 *.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
 !testdata/*.sqlite
+
+# Credentials and signing material
+.env
+.env.*
+!.env.example
+.npmrc
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json

@@ -26,16 +26,16 @@ func findModuleRoot() (string, error) {
 	}
 }
 
-// FixtureDBPath returns the path to the full appendix test database.
+// FixtureDBPath returns the path to the appendix sample database.
 func FixtureDBPath() (string, error) {
 	root, err := findModuleRoot()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, "testdata", "fixture.sqlite"), nil
+	return filepath.Join(root, "testdata", "sample.sqlite"), nil
 }
 
-// EnsureFixtureDB creates testdata/fixture.sqlite from testdata/fixtures.sql if missing.
+// EnsureFixtureDB creates testdata/sample.sqlite from testdata/fixtures.sql if missing.
 func EnsureFixtureDB() error {
 	path, err := FixtureDBPath()
 	if err != nil {

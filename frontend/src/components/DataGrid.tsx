@@ -1,8 +1,16 @@
 import {useCallback, useEffect, useState} from 'react';
-import {blobCellTooltip, formatAPIError, formatCellDisplay, model, WailsAPI} from '../api';
+import {formatAPIError, model, WailsAPI} from '../api';
+import {useDebouncedLoading} from '../hooks/useDebouncedLoading';
 import {useApp} from '../state/AppProvider';
+import {buildColumnUpdates, draftToColumnUpdate} from '../utils/recordSave';
+import {LoadingOverlay} from './LoadingOverlay';
+import {CellDetailModal} from './CellDetailModal';
+import {RecordDetailModal} from './RecordDetailModal';
+import {GridCell} from './GridCell';
+import {CellDetailContext, RecordRowContext} from '../utils/cellDetail';
 import {SelectedObject} from '../state/types';
 import './DataGrid.css';
+import './DetailModal.css';
 
 const PAGE_SIZES = [50, 100, 500, 1000];
 
@@ -13,7 +21,7 @@ interface DataGridProps {
 }
 
 export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps) {
-    const {reportTableQuery} = useApp();
+    const {reportTableQuery, state} = useApp();
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(100);
     const [sortColumn, setSortColumn] = useState('');
@@ -24,6 +32,9 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [exporting, setExporting] = useState(false);
+    const showLoading = useDebouncedLoading(loading);
+    const [cellDetail, setCellDetail] = useState<CellDetailContext | null>(null);
+    const [recordDetail, setRecordDetail] = useState<RecordRowContext | null>(null);
 
     const tableName =
         selected && (selected.kind === 'table' || selected.kind === 'view') ? selected.name : null;
@@ -50,12 +61,12 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
             const pageInfo = total != null
                 ? `Page ${resp.page} | rows ${resp.rows?.length ?? 0} | total ${total}`
                 : `Page ${resp.page} | rows ${resp.rows?.length ?? 0}`;
-            reportTableQuery(resp.durationMs ?? 0, pageInfo);
+            reportTableQuery(resp.durationMs ?? 0, pageInfo, false);
         } catch (err) {
             const {message} = formatAPIError(err);
             setError(message);
             setData(null);
-            reportTableQuery(0, null);
+            reportTableQuery(0, null, false);
         } finally {
             setLoading(false);
         }
@@ -136,10 +147,94 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
         }
     };
 
+    const columnMeta =
+        state.schema?.tables?.find((t) => t.name === tableName)?.columns ?? [];
+
+    const buildRecordContext = (rowIndex: number, cells: model.CellValue[]): RecordRowContext | null => {
+        if (!data?.columns) {
+            return null;
+        }
+        return {
+            source: 'table',
+            tableName: tableName ?? undefined,
+            rowIndex,
+            page,
+            rowId: data.rowIds?.[rowIndex],
+            editable: data.editable && data.rowIds?.[rowIndex] != null,
+            columnMeta,
+            columns: data.columns,
+            cells,
+        };
+    };
+
+    const saveRecord = async (ctx: RecordRowContext, drafts: Record<string, string>) => {
+        if (!tableName || ctx.rowId == null) {
+            throw new Error('This row cannot be saved.');
+        }
+        const updates = buildColumnUpdates(ctx.columns, ctx.cells, drafts, ctx.columnMeta ?? columnMeta);
+        if (updates.length === 0) {
+            return;
+        }
+        await WailsAPI.updateTableRow({
+            table: tableName,
+            rowId: ctx.rowId,
+            updates,
+        });
+        await loadRows();
+    };
+
+    const saveCellField = async (ctx: CellDetailContext, draft: string) => {
+        if (!tableName || ctx.rowId == null) {
+            throw new Error('This field cannot be saved.');
+        }
+        const meta = (ctx.columnMeta ?? columnMeta).find((c) => c.name === ctx.columnName);
+        if (!meta) {
+            throw new Error(`Unknown column ${ctx.columnName}.`);
+        }
+        const update = draftToColumnUpdate(ctx.columnName, draft, ctx.cell, meta);
+        await WailsAPI.updateTableRow({
+            table: tableName,
+            rowId: ctx.rowId,
+            updates: [update],
+        });
+        await loadRows();
+    };
+
+    const openCellDetail = (rowIndex: number, columnIndex: number) => {
+        const row = data?.rows?.[rowIndex];
+        if (!row || !data?.columns) {
+            return;
+        }
+        const base = buildRecordContext(rowIndex, row);
+        if (!base) {
+            return;
+        }
+        setCellDetail({
+            ...base,
+            columnIndex,
+            columnName: data.columns[columnIndex].name,
+            cell: row[columnIndex],
+        });
+    };
+
+    const openRecordDetail = (rowIndex: number) => {
+        const row = data?.rows?.[rowIndex];
+        if (!row) {
+            return;
+        }
+        const ctx = buildRecordContext(rowIndex, row);
+        if (ctx) {
+            setRecordDetail(ctx);
+        }
+    };
+
     return (
-        <div className="data-grid">
+        <div className="data-grid panel-with-overlay">
             <div className="data-grid-toolbar">
-                <span className="data-grid-title">{tableName}</span>
+                <span className="data-grid-title">
+                    {tableName}
+                    <span className="data-grid-hint"> · click cell · double-click row</span>
+                </span>
                 <label className="data-grid-control">
                     Filter
                     <input
@@ -194,13 +289,14 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                 </div>
             </div>
 
-            {error && <p className="data-grid-error">{error}</p>}
-            {loading && <p className="data-grid-loading">Loading...</p>}
+            {error && <p className="data-grid-error" role="alert">{error}</p>}
 
             <div className="data-grid-table-wrap">
+                {showLoading && <LoadingOverlay label="Loading rows..." />}
                 <table className="data-grid-table">
                     <thead>
                         <tr>
+                            <th className="data-grid-row-num" scope="col" aria-label="Row" />
                             {data?.columns?.map((col) => (
                                 <th key={col.name}>
                                     <button
@@ -218,20 +314,30 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                     <tbody>
                         {!loading && data?.rows?.length === 0 && (
                             <tr>
-                                <td colSpan={data.columns?.length ?? 1} className="data-grid-empty-row">
+                                <td colSpan={(data.columns?.length ?? 0) + 1} className="data-grid-empty-row">
                                     No rows.
                                 </td>
                             </tr>
                         )}
                         {data?.rows?.map((row, ri) => (
-                            <tr key={ri}>
-                                {row.map((cell, ci) => (
-                                    <td
-                                        key={ci}
-                                        title={blobCellTooltip(cell)}
-                                        className={cell.kind === 'blob' ? 'cell-blob' : undefined}
+                            <tr
+                                key={ri}
+                                onDoubleClick={() => openRecordDetail(ri)}
+                                title="Double-click to view full row"
+                            >
+                                <td className="data-grid-row-num">
+                                    <button
+                                        type="button"
+                                        className="data-grid-row-btn"
+                                        onClick={() => openRecordDetail(ri)}
+                                        title="View full row"
                                     >
-                                        {formatCellDisplay(cell)}
+                                        {ri + 1}
+                                    </button>
+                                </td>
+                                {row.map((cell, ci) => (
+                                    <td key={ci}>
+                                        <GridCell cell={cell} onOpen={() => openCellDetail(ri, ci)} />
                                     </td>
                                 ))}
                             </tr>
@@ -239,6 +345,48 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                     </tbody>
                 </table>
             </div>
+
+            <CellDetailModal
+                context={cellDetail}
+                onClose={() => setCellDetail(null)}
+                onSave={
+                    cellDetail?.editable
+                        ? (draft) => saveCellField(cellDetail, draft)
+                        : undefined
+                }
+                onViewRow={
+                    cellDetail
+                        ? () => {
+                              const ctx = buildRecordContext(cellDetail.rowIndex, cellDetail.cells);
+                              setCellDetail(null);
+                              if (ctx) {
+                                  setRecordDetail(ctx);
+                              }
+                          }
+                        : undefined
+                }
+            />
+            <RecordDetailModal
+                context={recordDetail}
+                onClose={() => setRecordDetail(null)}
+                onSave={
+                    recordDetail?.editable
+                        ? (drafts) => saveRecord(recordDetail, drafts)
+                        : undefined
+                }
+                onOpenCell={(columnIndex) => {
+                    if (!recordDetail) {
+                        return;
+                    }
+                    setRecordDetail(null);
+                    setCellDetail({
+                        ...recordDetail,
+                        columnIndex,
+                        columnName: recordDetail.columns[columnIndex].name,
+                        cell: recordDetail.cells[columnIndex],
+                    });
+                }}
+            />
         </div>
     );
 }

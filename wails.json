@@ -2,12 +2,20 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "sqlite-explorer",
   "outputfilename": "sqlite-explorer",
-  "frontend:install": "npm install",
+  "frontend:install": "npm ci",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "build:tags": "webkit2_41",
   "author": {
     "name": "Francisco Claude-Faust",
     "email": "fclaude@recoded.cl"
+  },
+  "info": {
+    "companyName": "Recoded",
+    "productName": "SQLite Explorer",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 Francisco Claude-Faust",
+    "comments": "A local-only desktop browser and editor for SQLite databases."
   }
 }

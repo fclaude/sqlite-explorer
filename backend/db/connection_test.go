@@ -1,8 +1,6 @@
 package db
 
 import (
-	"database/sql"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,35 +10,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if err := ensureSampleDB(); err != nil {
+	if err := EnsureFixtureDB(); err != nil {
 		panic(err)
 	}
 	os.Exit(m.Run())
-}
-
-func ensureSampleDB() error {
-	root, err := findModuleRoot()
-	if err != nil {
-		return err
-	}
-	path := filepath.Join(root, "testdata", "sample.sqlite")
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	sqlDB, err := sql.Open(Driver, path)
-	if err != nil {
-		return err
-	}
-	defer sqlDB.Close()
-	_, err = sqlDB.Exec(`CREATE TABLE sample (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`)
-	if err != nil {
-		return err
-	}
-	_, err = sqlDB.Exec(`INSERT INTO sample (id, name) VALUES (1, 'one')`)
-	return err
 }
 
 func sampleDBPath(t *testing.T) string {
@@ -53,6 +26,26 @@ func sampleDBPath(t *testing.T) string {
 }
 
 func TestOpen_ValidSqlite(t *testing.T) {
+	conn, err := Open(sampleDBPath(t), false)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer conn.Close()
+
+	if conn.ReadOnly() {
+		t.Fatal("expected writable connection for readOnly=false")
+	}
+	if conn.Path() == "" {
+		t.Fatal("expected non-empty path")
+	}
+
+	dsn := buildDSN(conn.Path(), false)
+	if strings.Contains(dsn, "mode=ro") {
+		t.Fatalf("writable DSN should not include mode=ro: %q", dsn)
+	}
+}
+
+func TestOpen_ReadOnlyDSN(t *testing.T) {
 	conn, err := Open(sampleDBPath(t), true)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -62,13 +55,12 @@ func TestOpen_ValidSqlite(t *testing.T) {
 	if !conn.ReadOnly() {
 		t.Fatal("expected read-only connection")
 	}
-	if conn.Path() == "" {
-		t.Fatal("expected non-empty path")
-	}
-
 	dsn := buildDSN(conn.Path(), true)
-	if !strings.Contains(dsn, "mode=ro") || !strings.Contains(dsn, "immutable=1") {
+	if !strings.Contains(dsn, "mode=ro") {
 		t.Fatalf("DSN missing read-only params: %q", dsn)
+	}
+	if strings.Contains(dsn, "immutable=1") {
+		t.Fatalf("read-only DSN must observe WAL and external changes: %q", dsn)
 	}
 }
 
@@ -94,7 +86,11 @@ func TestOpen_Missing(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("expected fs.ErrNotExist wrap, got %v", err)
+	appErr, ok := apperrors.As(err)
+	if !ok {
+		t.Fatalf("expected apperrors.Error, got %v", err)
+	}
+	if appErr.Message != "The database file could not be found." {
+		t.Fatalf("unexpected message: %q", appErr.Message)
 	}
 }

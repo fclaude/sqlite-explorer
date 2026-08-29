@@ -23,7 +23,7 @@ func TestRunQuery_BlocksWriteEvenIfValidatorBypassed(t *testing.T) {
 	}
 	sqlDB.Close()
 
-	conn, err := Open(path, true)
+	conn, err := Open(path, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,45 @@ func TestRunQuery_BlocksWriteEvenIfValidatorBypassed(t *testing.T) {
 
 	_, err = conn.runQuery(context.Background(), `INSERT INTO t VALUES (1)`)
 	if err == nil {
-		t.Fatal("expected readonly rejection")
+		t.Fatal("expected engine-level readonly rejection")
+	}
+	var count int
+	if err := conn.sql.QueryRow(`SELECT COUNT(*) FROM t`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("read-only query connection wrote %d rows", count)
+	}
+}
+
+func TestRunQuery_ReadOnlyConnectionSeesWrites(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "visible.db")
+	sqlDB, err := sql.Open(Driver, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqlDB.Exec(`CREATE TABLE t (id INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := Open(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.sql.Exec(`INSERT INTO t VALUES (7)`); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := conn.RunQuery(context.Background(), `SELECT id FROM t`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Rows) != 1 || resp.Rows[0][0].Value != int64(7) {
+		t.Fatalf("query connection did not observe write: %+v", resp.Rows)
 	}
 }
 

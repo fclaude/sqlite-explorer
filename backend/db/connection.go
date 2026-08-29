@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 	"fmt"
+	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,9 +24,10 @@ type countCacheKey struct {
 	filter string
 }
 
-// DB wraps a read-only SQLite connection to a single database file.
+// DB wraps a SQLite connection to a single database file.
 type DB struct {
 	sql           *sql.DB
+	querySQL      *sql.DB
 	path          string
 	readOnly      bool
 	openedAt      time.Time
@@ -34,8 +35,8 @@ type DB struct {
 	countMu       sync.RWMutex
 }
 
-// Open opens a SQLite database at path. When readOnly is true, the connection uses
-// mode=ro and immutable=1 so writes are rejected at the driver level.
+// Open opens a SQLite database at path. Ad-hoc SQL always runs through a separate
+// mode=ro connection so the read-only query boundary is enforced by SQLite.
 func Open(path string, readOnly bool) (*DB, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -45,7 +46,11 @@ func Open(path string, readOnly bool) (*DB, error) {
 	info, err := os.Stat(absPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("open database: %w", err)
+			return nil, apperrors.New(
+				apperrors.CodeNotSQLite,
+				"The database file could not be found.",
+				absPath,
+			)
 		}
 		if os.IsPermission(err) {
 			return nil, apperrors.New(apperrors.CodePermission, "Permission denied opening the database file.", absPath)
@@ -67,8 +72,23 @@ func Open(path string, readOnly bool) (*DB, error) {
 		return nil, err
 	}
 
+	queryDB := sqlDB
+	if !readOnly {
+		queryDB, err = sql.Open(Driver, buildDSN(absPath, true))
+		if err != nil {
+			_ = sqlDB.Close()
+			return nil, fmt.Errorf("open read-only query connection: %w", err)
+		}
+		if err := verifySQLite(queryDB); err != nil {
+			_ = queryDB.Close()
+			_ = sqlDB.Close()
+			return nil, err
+		}
+	}
+
 	return &DB{
 		sql:           sqlDB,
+		querySQL:      queryDB,
 		path:          absPath,
 		readOnly:      readOnly,
 		openedAt:      time.Now(),
@@ -93,7 +113,6 @@ func buildDSN(absPath string, readOnly bool) string {
 	q := u.Query()
 	if readOnly {
 		q.Set("mode", "ro")
-		q.Set("immutable", "1")
 	}
 	u.RawQuery = q.Encode()
 	return u.String()
@@ -123,7 +142,11 @@ func (d *DB) Close() error {
 	if d == nil || d.sql == nil {
 		return nil
 	}
-	return d.sql.Close()
+	var queryErr error
+	if d.querySQL != nil && d.querySQL != d.sql {
+		queryErr = d.querySQL.Close()
+	}
+	return errors.Join(d.sql.Close(), queryErr)
 }
 
 // Path returns the absolute filesystem path of the open database.

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SQLite Explorer
+Comment=Browse and edit local SQLite databases
+Exec=sqlite-explorer
+Icon=sqlite-explorer
+Terminal=false
+Categories=Development;Database;
+Keywords=SQLite;SQL;Database;
+StartupNotify=true
+StartupWMClass=sqlite-explorer

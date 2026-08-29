@@ -8,18 +8,27 @@ import (
 )
 
 var allowedPragmas = map[string]bool{
-	"table_info":        true,
-	"foreign_key_list":  true,
-	"index_list":        true,
-	"index_info":        true,
-	"database_list":     true,
-	"schema_version":    true,
-	"integrity_check":   true,
-	"quick_check":       true,
-	"compile_options":   true,
-	"encoding":          true,
-	"application_id":    true,
-	"user_version":      true,
+	"table_info":       true,
+	"foreign_key_list": true,
+	"index_list":       true,
+	"index_info":       true,
+	"database_list":    true,
+	"schema_version":   true,
+	"integrity_check":  true,
+	"quick_check":      true,
+	"compile_options":  true,
+	"encoding":         true,
+	"application_id":   true,
+	"user_version":     true,
+}
+
+var pragmasWithReadOnlyArguments = map[string]bool{
+	"table_info":       true,
+	"foreign_key_list": true,
+	"index_list":       true,
+	"index_info":       true,
+	"integrity_check":  true,
+	"quick_check":      true,
 }
 
 var forbiddenKeywords = map[string]bool{
@@ -85,6 +94,10 @@ func validatePragma(rest string) error {
 		return readOnlyViolation("writable_schema")
 	}
 	if !allowedPragmas[lower] {
+		return readOnlyViolation("PRAGMA " + name)
+	}
+	tail := strings.TrimSpace(rest[len(name):])
+	if tail != "" && !pragmasWithReadOnlyArguments[lower] {
 		return readOnlyViolation("PRAGMA " + name)
 	}
 	return nil

@@ -4,12 +4,14 @@ import {DataGrid} from './components/DataGrid';
 import {SchemaView} from './components/SchemaView';
 import {Sidebar} from './components/Sidebar';
 import {SqlEditor} from './components/SqlEditor';
+import {TableStatsView} from './components/TableStatsView';
 import {StatusBar} from './components/StatusBar';
 import {AppProvider, useApp} from './state/AppProvider';
 import {MainTab} from './state/types';
 
 const TABS: {id: MainTab; label: string}[] = [
     {id: 'data', label: 'Data'},
+    {id: 'stats', label: 'Statistics'},
     {id: 'schema', label: 'Schema'},
     {id: 'sql', label: 'SQL'},
 ];
@@ -89,6 +91,13 @@ function AppShell() {
                     <div className="tab-panel" role="tabpanel">
                         {state.activeTab === 'data' && (
                             <DataGrid
+                                selected={state.selected}
+                                hasDatabase={hasDatabase}
+                                onOpenDatabase={openDatabase}
+                            />
+                        )}
+                        {state.activeTab === 'stats' && (
+                            <TableStatsView
                                 selected={state.selected}
                                 hasDatabase={hasDatabase}
                                 onOpenDatabase={openDatabase}

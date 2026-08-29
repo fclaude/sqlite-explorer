@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        name: Match tag and package versions
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          wails_version="$(jq -r '.info.productVersion' wails.json)"
+          frontend_version="$(jq -r '.version' frontend/package.json)"
+          test "$version" = "$wails_version"
+          test "$version" = "$frontend_version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: verify-version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install build and packaging dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential dpkg-dev pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+      - name: Install locked frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+      - name: Build Linux binary
+        run: wails build -clean -trimpath -m -platform linux/amd64
+      - name: Build Linux packages
+        run: bash scripts/package_linux.sh "${{ needs.verify-version.outputs.version }}" amd64
+      - name: Inspect Debian package
+        run: dpkg-deb --info "build/release/sqlite-explorer_${{ needs.verify-version.outputs.version }}_amd64.deb" && dpkg-deb --contents "build/release/sqlite-explorer_${{ needs.verify-version.outputs.version }}_amd64.deb"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: build/release/*
+          if-no-files-found: error
+
+  macos:
+    needs: verify-version
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+      - name: Build universal macOS application
+        run: wails build -clean -trimpath -m -platform darwin/universal
+      - name: Ad-hoc sign and package macOS application
+        shell: bash
+        run: |
+          app="build/bin/sqlite-explorer.app"
+          output_dir="build/release"
+          dmg="$output_dir/SQLite-Explorer-${{ needs.verify-version.outputs.version }}-universal-unsigned.dmg"
+          mkdir -p "$app/Contents/Resources"
+          install -m 644 LICENSE "$app/Contents/Resources/LICENSE"
+          codesign --force --options runtime --sign - "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          plutil -lint "$app/Contents/Info.plist"
+          mkdir -p "$output_dir"
+          hdiutil create -volname "SQLite Explorer" -srcfolder "$app" -ov -format UDZO "$dmg"
+          codesign --force --sign - "$dmg"
+          codesign --verify --verbose=2 "$dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: build/release/*
+          if-no-files-found: error
+
+  publish:
+    needs: [verify-version, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Create checksums
+        run: |
+          checksum_file="$(mktemp)"
+          pushd release >/dev/null
+          find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > "$checksum_file"
+          popd >/dev/null
+          mv "$checksum_file" release/SHA256SUMS
+      - name: Publish GitHub Release
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes --title "SQLite Explorer $GITHUB_REF_NAME"
+          fi

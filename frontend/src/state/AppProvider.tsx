@@ -12,7 +12,7 @@ interface AppContextValue {
     setSidebarWidth: (width: number) => void;
     toggleGroup: (group: string) => void;
     clearError: () => void;
-    reportTableQuery: (durationMs: number, pageInfo: string | null) => void;
+    reportTableQuery: (durationMs: number, pageInfo: string | null, truncated?: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -48,11 +48,11 @@ export function AppProvider({children}: {children: ReactNode}) {
     const selectObject = useCallback((selected: SelectedObject | null) => {
         dispatch({type: 'SELECT', selected});
         if (selected?.kind === 'table' || selected?.kind === 'view') {
-            dispatch({type: 'SET_TAB', tab: 'data'});
+            dispatch({type: 'SET_TAB', tab: state.activeTab === 'stats' ? 'stats' : 'data'});
         } else if (selected) {
             dispatch({type: 'SET_TAB', tab: 'schema'});
         }
-    }, []);
+    }, [state.activeTab]);
 
     const setTab = useCallback((tab: AppState['activeTab']) => {
         dispatch({type: 'SET_TAB', tab});
@@ -70,9 +70,10 @@ export function AppProvider({children}: {children: ReactNode}) {
         dispatch({type: 'CLEAR_ERROR'});
     }, []);
 
-    const reportTableQuery = useCallback((durationMs: number, pageInfo: string | null) => {
+    const reportTableQuery = useCallback((durationMs: number, pageInfo: string | null, truncated = false) => {
         dispatch({type: 'SET_QUERY_DURATION', ms: durationMs});
         dispatch({type: 'SET_PAGE_INFO', info: pageInfo});
+        dispatch({type: 'SET_TRUNCATED', truncated});
     }, []);
 
     const value = useMemo(

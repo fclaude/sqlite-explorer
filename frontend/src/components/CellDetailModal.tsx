@@ -1,0 +1,164 @@
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {formatAPIError} from '../api';
+import {CellDetailContext, cellDetailText, cellTypeLabel, rowLabel} from '../utils/cellDetail';
+import {hasFieldDraftChange} from '../utils/recordSave';
+import './DetailModal.css';
+
+interface CellDetailModalProps {
+    context: CellDetailContext | null;
+    onClose: () => void;
+    onViewRow?: () => void;
+    onSave?: (draft: string) => Promise<void>;
+}
+
+export function CellDetailModal({context, onClose, onViewRow, onSave}: CellDetailModalProps) {
+    const [draft, setDraft] = useState('');
+    const [copied, setCopied] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        if (!context) {
+            return;
+        }
+        setDraft(cellDetailText(context.cell));
+        setCopied(false);
+        setSaveError(null);
+        const t = window.setTimeout(() => textareaRef.current?.focus(), 0);
+        return () => window.clearTimeout(t);
+    }, [context]);
+
+    useEffect(() => {
+        if (!context) {
+            return;
+        }
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [context, onClose]);
+
+    const copyValue = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(draft);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+        } catch {
+            textareaRef.current?.select();
+            document.execCommand('copy');
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+        }
+    }, [draft]);
+
+    const handleSave = useCallback(async () => {
+        if (!context || !onSave) {
+            return;
+        }
+        setSaving(true);
+        setSaveError(null);
+        try {
+            await onSave(draft);
+            onClose();
+        } catch (err) {
+            setSaveError(formatAPIError(err).message);
+        } finally {
+            setSaving(false);
+        }
+    }, [context, draft, onSave, onClose]);
+
+    if (!context) {
+        return null;
+    }
+
+    const title =
+        context.tableName != null
+            ? `${context.tableName}.${context.columnName}`
+            : context.columnName;
+
+    const canSave =
+        context.editable &&
+        !!onSave &&
+        context.rowId != null &&
+        hasFieldDraftChange(draft, context.cell);
+
+    const hint =
+        context.editable && context.source === 'table'
+            ? 'Edit this field and click Save to update only this column.'
+            : context.source === 'query'
+              ? 'Query results are read-only.'
+              : 'Edit to copy or inspect. Use View full row to edit table rows.';
+
+    return (
+        <div className="detail-modal-backdrop" onClick={onClose} role="presentation">
+            <div
+                className="detail-modal"
+                role="dialog"
+                aria-labelledby="cell-detail-title"
+                aria-modal="true"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <header className="detail-modal-header">
+                    <div>
+                        <h2 id="cell-detail-title" className="detail-modal-title">
+                            {title}
+                        </h2>
+                        <p className="detail-modal-meta">
+                            {rowLabel(context)} · {cellTypeLabel(context.cell)}
+                            {context.source === 'query' ? ' · query result' : ''}
+                            {context.rowId != null ? ` · rowid ${context.rowId}` : ''}
+                        </p>
+                    </div>
+                    <button type="button" className="detail-modal-close" onClick={onClose} aria-label="Close">
+                        ×
+                    </button>
+                </header>
+
+                <p className="detail-modal-hint">{hint}</p>
+                {saveError && (
+                    <p className="detail-modal-error" role="alert">
+                        {saveError}
+                    </p>
+                )}
+
+                <textarea
+                    ref={textareaRef}
+                    className="detail-modal-editor"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    spellCheck={false}
+                    disabled={saving}
+                    placeholder={context.cell.kind === 'null' ? 'NULL' : undefined}
+                />
+
+                <footer className="detail-modal-footer">
+                    <button type="button" className="btn" onClick={copyValue} disabled={saving}>
+                        {copied ? 'Copied' : 'Copy'}
+                    </button>
+                    {context.editable && onSave && (
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={handleSave}
+                            disabled={!canSave || saving}
+                        >
+                            {saving ? 'Saving...' : 'Save'}
+                        </button>
+                    )}
+                    {onViewRow && (
+                        <button type="button" className="btn" onClick={onViewRow} disabled={saving}>
+                            View full row
+                        </button>
+                    )}
+                    <button type="button" className="btn" onClick={onClose} disabled={saving}>
+                        Close
+                    </button>
+                </footer>
+            </div>
+        </div>
+    );
+}

@@ -1,6 +1,6 @@
 import {model} from '../api';
 
-export type MainTab = 'data' | 'schema' | 'sql';
+export type MainTab = 'data' | 'stats' | 'schema' | 'sql';
 
 export type ObjectKind = 'table' | 'view' | 'index' | 'trigger';
 
@@ -15,6 +15,7 @@ export interface StatusState {
     queryDurationMs: number | null;
     pageInfo: string | null;
     loading: boolean;
+    truncated: boolean;
 }
 
 export interface AppState {
@@ -39,7 +40,8 @@ export type AppAction =
     | {type: 'SET_SIDEBAR_WIDTH'; width: number}
     | {type: 'TOGGLE_GROUP'; group: string}
     | {type: 'SET_QUERY_DURATION'; ms: number | null}
-    | {type: 'SET_PAGE_INFO'; info: string | null};
+    | {type: 'SET_PAGE_INFO'; info: string | null}
+    | {type: 'SET_TRUNCATED'; truncated: boolean};
 
 export const initialState: AppState = {
     dbInfo: null,
@@ -54,6 +56,7 @@ export const initialState: AppState = {
         queryDurationMs: null,
         pageInfo: null,
         loading: false,
+        truncated: false,
     },
 };
 
@@ -89,6 +92,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
                     queryDurationMs: null,
                     pageInfo: null,
                     loading: false,
+                    truncated: false,
                 },
             };
         case 'CLEAR_DB':
@@ -122,6 +126,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
             return {
                 ...state,
                 status: {...state.status, pageInfo: action.info},
+            };
+        case 'SET_TRUNCATED':
+            return {
+                ...state,
+                status: {...state.status, truncated: action.truncated},
             };
         default:
             return state;

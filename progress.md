@@ -23,10 +23,10 @@ When asked to **take 1 step**, follow [`WORKFLOW.md`](WORKFLOW.md) (Cursor rule:
 | 5 | Table data browser | Done | agent | 2026-05-15 |
 | 6 | SQL query runner + read-only enforcement | Done | agent | 2026-05-15 |
 | 7 | CSV export | Done | agent | 2026-05-15 |
-| 8 | UX polish, error handling, performance caps | Not started | — | — |
-| 9 | Tests, sample DB, README, build | Not started | — | — |
+| 8 | UX polish, error handling, performance caps | Done | agent | 2026-05-15 |
+| 9 | Tests, sample DB, README, build | Done | agent | 2026-05-15 |
 
-Overall completion: 7 / 9 stages.
+Overall completion: 9 / 9 stages.
 
 ---
 
@@ -88,7 +88,7 @@ Wails CLI installed via `go install github.com/wailsapp/wails/v2/cmd/wails@v2.12
 - [x] `TestGetSchema_Fixture` green.
 
 **Notes.**
-`testdata/fixtures.sql` + `fixture.sqlite` for appendix fixture. Auto-indexes filtered from top-level index list.
+`testdata/fixtures.sql` + generated `sample.sqlite` for the appendix fixture. Auto-indexes filtered from top-level index list.
 
 ---
 
@@ -175,19 +175,19 @@ Save dialog on backend; Export CSV on Data and SQL tabs. RFC 4180 via encoding/c
 
 **Goal.** Loading + empty states, consistent error model, truncation indicator, query cancellation.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] All manual matrix items (no DB open, missing file, non-SQLite file, perm denied, malformed SQL, mutating SQL, timeout, truncation, concurrent browse+query) pass.
-- [ ] No raw Go errors visible in the UI.
-- [ ] Cancel button interrupts a long query.
-- [ ] `TestErrors_UserMessage`, `TestCancelQuery_Interrupts` green.
+- [x] All manual matrix items (no DB open, missing file, non-SQLite file, perm denied, malformed SQL, mutating SQL, timeout, truncation, concurrent browse+query) pass.
+- [x] No raw Go errors visible in the UI.
+- [x] Cancel button interrupts a long query.
+- [x] `TestErrors_UserMessage`, `TestCancelQuery_Interrupts` green.
 
 **Notes.**
-_None._
+Debounced loading overlays, `apperrors.UserMessage`, `CancelQuery`, status bar truncation badge, SQL cancel button.
 
 ---
 
@@ -195,33 +195,33 @@ _None._
 
 **Goal.** Round out tests, ship sample DB + generator, finalize README, verify release build.
 
-**Status:** Not started
-**Owner:** —
-**Started:** —
-**Completed:** —
+**Status:** Done
+**Owner:** agent
+**Started:** 2026-05-15
+**Completed:** 2026-05-15
 
 **Definition of done.**
-- [ ] `go test ./... -race -count=1` green.
-- [ ] `wails build` produces a runnable artifact.
-- [ ] README walk-through executed end-to-end without surprises.
-- [ ] `testdata/sample.sqlite` (or generator script) committed.
+- [x] `go test ./... -race -count=1` green.
+- [x] `wails build` produces a runnable artifact.
+- [x] README walk-through executed end-to-end without surprises.
+- [x] `testdata/sample.sqlite` (or generator script) committed.
 
 **Notes.**
-_None._
+`scripts/gen_sample_db.go`, README (prereqs, architecture, security, troubleshooting), `.github/workflows/test.yml`, `make gen-sample-db`.
 
 ---
 
 ## Final acceptance checklist
 
-- [ ] All nine stage Definitions of done satisfied.
-- [ ] `go test ./... -race -count=1` passes locally.
-- [ ] `wails build` succeeds and produces a runnable binary.
-- [ ] Read-only mode enforced at both DSN and validator layers (covered by tests).
-- [ ] Identifier quoting helper is the only path for interpolating identifiers.
-- [ ] 1M-row sample database browseable without UI freeze (<150ms per page).
-- [ ] No emojis in UI strings or source.
-- [ ] No telemetry, network, or hosted-service calls.
-- [ ] README covers prerequisites, dev, build, troubleshooting, security note.
+- [x] All nine stage Definitions of done satisfied.
+- [x] `go test ./... -race -count=1` passes locally.
+- [x] `wails build` succeeds and produces a runnable binary.
+- [x] Read-only mode enforced at both DSN and validator layers (covered by tests).
+- [x] Identifier quoting helper is the only path for interpolating identifiers.
+- [ ] 1M-row sample database browseable without UI freeze (<150ms per page) — manual perf check with `make gen-big-db`.
+- [x] No emojis in UI strings or source.
+- [x] No telemetry, network, or hosted-service calls (truncation badge links to sqlite.org docs only).
+- [x] README covers prerequisites, dev, build, troubleshooting, security note.
 
 ---
 
@@ -229,6 +229,8 @@ _None._
 
 Append a one-line entry whenever a stage's status changes. Newest entries at the top.
 
+- 2026-05-15 — Stage 9 -> Done. sample.sqlite generator, README, CI workflow, release build verified.
+- 2026-05-15 — Stage 8 -> Done. UX polish, UserMessage, query cancel, loading overlays, truncation badge.
 - 2026-05-15 — Stage 7 -> Done. ExportRowsToCSV, save dialog, Data/SQL export buttons.
 - 2026-05-15 — Stage 6 -> Done. RunQuery, read-only validator, SqlEditor, query history.
 - 2026-05-15 — Stage 5 -> Done. GetTableRows pagination/sort/filter, DataGrid UI, backend tests.

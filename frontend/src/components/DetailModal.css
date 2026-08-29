@@ -1,0 +1,218 @@
+.detail-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(8, 12, 18, 0.72);
+}
+
+.detail-modal {
+    display: flex;
+    flex-direction: column;
+    width: min(720px, 100%);
+    max-height: min(85vh, 900px);
+    background: #1b2636;
+    border: 1px solid #3d4f66;
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.detail-modal-record {
+    width: min(880px, 100%);
+}
+
+.detail-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem 0.5rem;
+    border-bottom: 1px solid #2d3a4d;
+}
+
+.detail-modal-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e8eef5;
+}
+
+.detail-modal-meta {
+    margin: 0.25rem 0 0;
+    font-size: 0.75rem;
+    color: #8fa3bc;
+}
+
+.detail-modal-close {
+    border: none;
+    background: transparent;
+    color: #8fa3bc;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.25rem;
+}
+
+.detail-modal-close:hover {
+    color: #e8eef5;
+}
+
+.detail-modal-hint {
+    margin: 0;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.75rem;
+    color: #9ec9a8;
+    background: #152030;
+    border-bottom: 1px solid #2d3a4d;
+}
+
+.detail-modal-error {
+    margin: 0;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.8rem;
+    color: #e8a0a0;
+    background: #2a1a1a;
+    border-bottom: 1px solid #4a3040;
+}
+
+.detail-modal-editor {
+    flex: 1;
+    min-height: 200px;
+    margin: 0;
+    padding: 1rem 1.25rem;
+    border: none;
+    resize: vertical;
+    background: #121a24;
+    color: #e8eef5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.detail-modal-editor:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px #5b8def;
+}
+
+.detail-modal-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    padding: 0.75rem 1.25rem 1rem;
+    border-top: 1px solid #2d3a4d;
+}
+
+.record-detail-fields {
+    flex: 1;
+    overflow: auto;
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.record-detail-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.record-detail-field-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.record-detail-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #c5d4e8;
+}
+
+.record-detail-type {
+    font-size: 0.7rem;
+    color: #6b829c;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.record-detail-expand {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: #5b8def;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+}
+
+.record-detail-expand:hover {
+    text-decoration: underline;
+}
+
+.record-detail-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+    background: #121a24;
+    color: #e8eef5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    resize: vertical;
+}
+
+.record-detail-input:focus {
+    outline: none;
+    border-color: #5b8def;
+}
+
+.grid-cell-btn {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    padding: 0;
+    cursor: pointer;
+}
+
+.grid-cell-btn:hover {
+    color: #a8c4f0;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
+
+.data-grid-row-num {
+    width: 2.5rem;
+    text-align: right;
+    color: #6b829c;
+    user-select: none;
+}
+
+.data-grid-row-btn {
+    border: none;
+    background: transparent;
+    color: #6b829c;
+    font-size: inherit;
+    cursor: pointer;
+    padding: 0;
+    width: 100%;
+    text-align: right;
+}
+
+.data-grid-row-btn:hover {
+    color: #5b8def;
+}

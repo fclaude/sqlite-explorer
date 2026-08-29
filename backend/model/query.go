@@ -33,6 +33,8 @@ type BlobValue struct {
 type TableRowsResponse struct {
 	Columns    []ColumnResult `json:"columns"`
 	Rows       [][]CellValue  `json:"rows"`
+	RowIDs     []string       `json:"rowIds,omitempty"`
+	Editable   bool           `json:"editable"`
 	Page       int            `json:"page"`
 	PageSize   int            `json:"pageSize"`
 	TotalRows  *int64         `json:"totalRows,omitempty"`
@@ -51,4 +53,5 @@ type QueryResponse struct {
 	RowCount   int            `json:"rowCount"`
 	Truncated  bool           `json:"truncated"`
 	DurationMs int64          `json:"durationMs"`
+	QueryID    int64          `json:"queryId"`
 }

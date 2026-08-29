@@ -85,7 +85,15 @@ func (d *DB) GetTableRows(ctx context.Context, req model.TableRowsRequest) (mode
 		resultCols[i] = model.ColumnResult{Name: col.Name, Type: col.Type}
 	}
 
+	rowIDAlias, useRowID := d.editableRowIDAlias(ctx, req.Table, columns)
 	query := "SELECT " + strings.Join(selectCols, ", ") + " FROM " + quotedTable
+	if useRowID {
+		quotedRowID, err := QuoteIdentifier(rowIDAlias)
+		if err != nil {
+			return model.TableRowsResponse{}, err
+		}
+		query = "SELECT " + quotedRowID + ", " + strings.Join(selectCols, ", ") + " FROM " + quotedTable
+	}
 	args := []any{}
 
 	if req.Filter != "" {
@@ -129,13 +137,20 @@ func (d *DB) GetTableRows(ctx context.Context, req model.TableRowsRequest) (mode
 	defer rows.Close()
 
 	var result [][]model.CellValue
+	var rowIDs []string
 	for rows.Next() {
 		dest := make([]any, len(columns))
 		ptrs := make([]any, len(columns))
 		for i := range dest {
 			ptrs[i] = &dest[i]
 		}
-		if err := rows.Scan(ptrs...); err != nil {
+		var sqliteRowID int64
+		if useRowID {
+			if err := rows.Scan(append([]any{&sqliteRowID}, ptrs...)...); err != nil {
+				return model.TableRowsResponse{}, err
+			}
+			rowIDs = append(rowIDs, strconv.FormatInt(sqliteRowID, 10))
+		} else if err := rows.Scan(ptrs...); err != nil {
 			return model.TableRowsResponse{}, err
 		}
 		row := make([]model.CellValue, len(columns))
@@ -151,6 +166,8 @@ func (d *DB) GetTableRows(ctx context.Context, req model.TableRowsRequest) (mode
 	resp := model.TableRowsResponse{
 		Columns:    resultCols,
 		Rows:       result,
+		RowIDs:     rowIDs,
+		Editable:   useRowID,
 		Page:       page,
 		PageSize:   pageSize,
 		DurationMs: time.Since(start).Milliseconds(),
@@ -341,12 +358,12 @@ func (d *DB) runQuery(ctx context.Context, sql string) (model.QueryResponse, err
 	ctx, cancel := context.WithTimeout(ctx, DefaultQueryTimeout)
 	defer cancel()
 
-	rows, err := d.sql.QueryContext(ctx, sql)
+	rows, err := d.querySQL.QueryContext(ctx, sql)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || ctx.Err() == context.DeadlineExceeded {
 			return model.QueryResponse{}, apperrors.New(apperrors.CodeTimeout, "Query timed out.", "")
 		}
-		return model.QueryResponse{}, fmt.Errorf("query: %w", err)
+		return model.QueryResponse{}, mapQueryError(err)
 	}
 	defer rows.Close()
 
@@ -368,6 +385,9 @@ func (d *DB) runQuery(ctx context.Context, sql string) (model.QueryResponse, err
 	var result [][]model.CellValue
 	truncated := false
 	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			return model.QueryResponse{}, mapQueryError(err)
+		}
 		if len(result) >= MaxQueryRows {
 			truncated = true
 			break
@@ -394,7 +414,7 @@ func (d *DB) runQuery(ctx context.Context, sql string) (model.QueryResponse, err
 		if errors.Is(err, context.DeadlineExceeded) || ctx.Err() == context.DeadlineExceeded {
 			return model.QueryResponse{}, apperrors.New(apperrors.CodeTimeout, "Query timed out.", "")
 		}
-		return model.QueryResponse{}, err
+		return model.QueryResponse{}, mapQueryError(err)
 	}
 
 	return model.QueryResponse{
