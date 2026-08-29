@@ -4,7 +4,7 @@ Local-only desktop SQLite database explorer built with [Wails](https://wails.io)
 
 ## Prerequisites
 
-- **Go** 1.25 or newer (`go version`)
+- **Go** 1.25.13 or newer (`go version`)
 - **Node.js** 20.19+ or 22.12+ and npm 10+ (`node --version`)
 - **Wails CLI** v2.15.0 (install below)
 
