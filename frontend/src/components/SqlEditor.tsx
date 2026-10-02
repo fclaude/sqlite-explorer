@@ -215,10 +215,13 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
         );
     }
 
-    // A blocked statement names its category in the error detail; offer to allow it.
+    // A blocked statement names its category id in the error detail; offer to allow it
+    // instead of showing the id.
+    const blockedByCategory = error?.code === 'READ_ONLY_VIOLATION' && categories.some((c) => c.id === error.detail);
+    const shownError = error && blockedByCategory ? {...error, detail: ''} : error;
     const blockedCategory =
-        error?.code === 'READ_ONLY_VIOLATION' && !readOnlyDatabase
-            ? configurable.find((c) => c.id === error.detail && !activeAllowed.includes(c.id))
+        blockedByCategory && !readOnlyDatabase
+            ? configurable.find((c) => c.id === error?.detail && !activeAllowed.includes(c.id))
             : undefined;
 
     const resultSummary = (() => {
@@ -310,7 +313,7 @@ export function SqlEditor({hasDatabase, onOpenDatabase}: SqlEditorProps) {
                 spellCheck={false}
                 aria-label="SQL"
             />
-            <ErrorNotice error={error} className="sql-error">
+            <ErrorNotice error={shownError} className="sql-error">
                 {blockedCategory && (
                     <div>
                         <button

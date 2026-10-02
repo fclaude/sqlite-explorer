@@ -112,6 +112,7 @@ The SQL tab runs read queries by default. **Permissions** in the editor toolbar 
 - Read-only runs use a separate `mode=ro` connection with `PRAGMA query_only`, so SQLite itself refuses writes.
 - Runs that change anything use a dedicated connection that is closed afterwards: temporary tables, attached databases, and `PRAGMA` settings last only for that run. A transaction left open when a run ends is rolled back.
 - **Export CSV** in the SQL tab runs the query again, so it only accepts read queries.
+- The SQLite driver parses `DATE`, `DATETIME`, and `TIMESTAMP` columns selected directly in a query, so the SQL tab shows them as `YYYY-MM-DD HH:MM:SS`. Select `CAST(col AS TEXT)` to see the stored text. The Data tab, row editor, and table export always use the stored text.
 
 ## Security
 

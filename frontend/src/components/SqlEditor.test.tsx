@@ -93,7 +93,9 @@ describe('SqlEditor permissions', () => {
         setSQL('DELETE FROM t');
         fireEvent.click(screen.getByRole('button', {name: 'Run query'}));
 
-        fireEvent.click(await screen.findByRole('button', {name: 'Allow Data changes'}));
+        const allow = await screen.findByRole('button', {name: 'Allow Data changes'});
+        expect(screen.queryByText('data', {exact: true})).toBeNull();
+        fireEvent.click(allow);
         expect(screen.getByRole('checkbox', {name: /Data changes/})).toBeChecked();
         expect(screen.queryByRole('alert')).toBeNull();
     });

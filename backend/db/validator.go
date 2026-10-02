@@ -36,7 +36,7 @@ var categories = []categoryInfo{
 	{
 		id:          CategoryRead,
 		label:       "Read queries",
-		description: "Always allowed. Runs on a read-only connection.",
+		description: "They run on a read-only connection that SQLite itself keeps from writing.",
 		statements:  []string{"SELECT", "VALUES", "WITH … SELECT", "EXPLAIN", "read-only PRAGMAs"},
 	},
 	{
