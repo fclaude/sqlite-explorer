@@ -1,101 +1,29 @@
 # SQLite Explorer
 
-Local-only desktop SQLite database explorer built with [Wails](https://wails.io), Go, and React + TypeScript. Opens `.sqlite` files for browsing and editing table rows; runs SQL in the SQL tab (read-only unless you allow more, see [SQL editor permissions](#sql-editor-permissions)); exports CSV.
+A desktop app for browsing and editing SQLite databases, built with [Wails](https://wails.io), Go, and React. It works entirely offline: no telemetry, no update checks, no network access.
 
-## Prerequisites
+- Browse tables, views, indexes, and triggers; page, sort, and filter rows.
+- Edit rows in base tables. BLOBs are edited as hex.
+- Run SQL. Only read queries run until you allow more (see [SQL editor permissions](#sql-editor-permissions)).
+- View row counts, indexes, and storage use per table.
+- Export the current page, every matching row of a table, or a full query result to CSV.
 
-- **Go** 1.25.13 or newer (`go version`)
-- **Node.js** 20.19+ or 22.12+ and npm 10+ (`node --version`)
-- **Wails CLI** v2.15.0 (install below)
+## Install
 
-Linux builds target the modern WebKit2GTK 4.1 ABI. On Debian 12 / Ubuntu 22.04 or newer:
+Download a package from [Releases](https://github.com/fclaude/sqlite-explorer/releases):
 
-```bash
-sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
-```
+| Platform | File |
+|---|---|
+| Debian 12, Ubuntu 22.04 or newer | `sqlite-explorer_VERSION_amd64.deb` |
+| Fedora | `sqlite-explorer-VERSION-1.x86_64.rpm` |
+| Other Linux with GTK3 and WebKit2GTK 4.1 | `sqlite-explorer-VERSION-linux-amd64.tar.gz` |
+| macOS 12 or newer, Intel or Apple Silicon | `SQLite-Explorer-VERSION-universal-unsigned.dmg` |
 
-End users need the corresponding GTK3 and WebKit2GTK 4.1 runtime libraries. Package names for other distributions are listed in the [Wails Linux support guide](https://wails.io/docs/guides/linux-distro-support/).
-
-### Install Wails CLI
-
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
-export PATH="$(go env GOPATH)/bin:$PATH"
-wails doctor
-```
-
-On macOS 12 Monterey or newer, `wails doctor` may prompt you to install Xcode command-line tools if they are missing.
-
-## Development
-
-```bash
-# Install the exact frontend dependency lock
-cd frontend && npm ci && cd ..
-
-# Hot reload
-wails dev
-```
-
-Or via Makefile:
-
-```bash
-make dev              # hot reload
-make install-deps     # npm ci
-make test             # go test ./...
-make frontend-test    # vitest
-```
-
-## Build and run
-
-```bash
-make build          # current platform
-make build-linux    # Linux amd64, WebKit2GTK 4.1
-make build-macos    # universal Intel + Apple Silicon .app (run on macOS)
-make run            # build and launch the current-platform app
-```
-
-Release binary: `build/bin/sqlite-explorer` (macOS: `build/bin/sqlite-explorer.app`).
-
-Linux publishing produces `.deb` and Fedora-compatible `.rpm` packages with GTK/WebKit runtime dependencies, plus a portable `.tar.gz`. Releases also include tracked-source snapshots named `sqlite-explorer-VERSION.src.tar.gz` and `sqlite-explorer-VERSION.src.zip`. macOS publishing produces a universal, ad-hoc-signed `.dmg` without Apple notarization; Gatekeeper may require users to approve it through Privacy & Security. Tagging a version such as `v0.1.2` runs the release workflow; details and the release checklist are in [`docs/RELEASING.md`](docs/RELEASING.md).
-
-SQLite Explorer is available under the [MIT License](LICENSE).
-
-## Sample database
-
-The appendix fixture lives in `testdata/fixtures.sql`. Generate `testdata/sample.sqlite`:
-
-```bash
-go run scripts/gen_sample_db.go
-```
-
-Use this file for manual walk-throughs and tests. A large DB for performance checks:
-
-```bash
-make gen-big-db   # writes /tmp/sqlite-explorer-big.db (1M rows by default)
-```
-
-## Architecture
-
-```
-+------------------+     Wails bindings (JSON)      +------------------+
-|  React frontend  |  <-------------------------->  |  backend.App     |
-|  api.ts wrapper  |                              |  (app.go)        |
-+------------------+                              +--------+---------+
-                                                           |
-                                                           v
-                                                  +--------+---------+
-                                                  |  backend/db      |
-                                                  |  SQLite file     |
-                                                  +------------------+
-```
-
-- **Frontend** (`frontend/src/`): UI only; calls Go through `api.ts` (never imports `wailsjs` from components).
-- **Backend** (`backend/`): file picker, schema, paginated rows, SQL statement classifier, CSV export, query cancel.
-- **Driver**: [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite) (pure Go, no CGO).
+`SHA256SUMS` lists a checksum for every file. The macOS app is ad-hoc signed but not notarized, so macOS may block the first launch; if you trust the download, choose **Open Anyway** under **System Settings → Privacy & Security**.
 
 ## SQL editor permissions
 
-The SQL tab runs read queries by default. **Permissions** in the editor toolbar lists what runs and lets you allow more categories; the choice is remembered on this machine.
+The SQL tab runs read queries only. Open **Permissions** in the editor toolbar to see what runs and to allow more; the choice is remembered on this computer.
 
 | Category | Statements | Default |
 |---|---|---|
@@ -105,46 +33,63 @@ The SQL tab runs read queries by default. **Permissions** in the editor toolbar 
 | Transactions | `BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, `RELEASE` | Off |
 | Maintenance | `VACUUM`, `VACUUM INTO`, `ANALYZE`, `REINDEX` | Off |
 | Attach databases | `ATTACH`, `DETACH` | Off |
-| Other PRAGMAs | any `PRAGMA` not on the read-only list, including assignments | Off |
-| Never allowed | `PRAGMA writable_schema` (can corrupt the file) | Blocked |
+| Other PRAGMAs | Any `PRAGMA` not on the read-only list, including assignments | Off |
+| Never allowed | `PRAGMA writable_schema`, which can corrupt the file | Blocked |
 
-- Each statement in a script is checked separately. The splitter follows SQLite's own rules for quotes, comments, and `CREATE TRIGGER` bodies, and is tested against `sqlite3_complete()`.
-- Read-only runs use a separate `mode=ro` connection with `PRAGMA query_only`, so SQLite itself refuses writes.
-- Runs that change anything use a dedicated connection that is closed afterwards: temporary tables, attached databases, and `PRAGMA` settings last only for that run. A transaction left open when a run ends is rolled back.
-- **Export CSV** in the SQL tab runs the query again, so it only accepts read queries.
-- The SQLite driver parses `DATE`, `DATETIME`, and `TIMESTAMP` columns selected directly in a query, so the SQL tab shows them as `YYYY-MM-DD HH:MM:SS`. Select `CAST(col AS TEXT)` to see the stored text. The Data tab, row editor, and table export always use the stored text.
-
-## Security
-
-1. **SQL tab**: every statement is classified and checked against the permissions above before it runs; read-only runs are also enforced by SQLite (`mode=ro` plus `query_only`).
-2. **Table edits**: row updates use parameterized `UPDATE` statements with quoted identifiers (`QuoteIdentifier`); only base tables (not views) are editable.
-3. **Table browse**: table and column names are quoted via `QuoteIdentifier` before interpolation.
-4. **Local-only operation**: the app has no analytics, telemetry, update checker, or network API. Database contents remain on the machine unless the user explicitly exports CSV.
-
-Please report vulnerabilities through the repository's private security-advisory channel; see [`SECURITY.md`](SECURITY.md). Do not attach a private database to a public issue.
+- Every statement in a script is checked. The statement splitter follows SQLite's rules for quotes, comments, and `CREATE TRIGGER` bodies and is tested against SQLite's own `sqlite3_complete()`.
+- Read queries run on a connection opened with `mode=ro` and `PRAGMA query_only`, so SQLite itself refuses writes.
+- Anything else runs on its own connection, which is closed when the run ends: temporary tables, attached databases, and `PRAGMA` settings do not carry over, and a transaction left open is rolled back.
+- **Export CSV** runs the query again, so it accepts read queries only.
+- The SQLite driver parses `DATE`, `DATETIME`, and `TIMESTAMP` columns selected directly in a query and shows them as `YYYY-MM-DD HH:MM:SS`. Select `CAST(col AS TEXT)` to see the stored text. The Data tab, the row editor, and table exports always show the stored text.
 
 ## Troubleshooting
 
-| Symptom | Likely cause |
-|--------|----------------|
-| `file is encrypted or is not a database` | Wrong file selected, corrupted file, or not SQLite — not a driver bug. |
-| Permission denied opening the database | OS file permissions (`chmod`) or macOS privacy restrictions on the file location. |
-| App won't open on macOS (Gatekeeper) | Right-click the `.app` → Open, or allow in System Settings → Privacy & Security. |
-| Query timed out | Heavy query; simplify or add limits. Default timeout is 30 seconds. |
-| Showing first 1000 rows | Result cap for responsiveness; **Export CSV** writes every row. |
-| "… is not allowed. Enable … under Permissions" | The SQL contains a statement category that is switched off; see [SQL editor permissions](#sql-editor-permissions). |
-| "The run ended inside an open transaction" | The script ran `BEGIN` without `COMMIT`; its changes were rolled back. |
+| Symptom | Cause |
+|---|---|
+| `file is encrypted or is not a database` | The file is not an SQLite database, or it is damaged or encrypted. |
+| Permission denied opening the database | File permissions, or macOS privacy restrictions on the folder. |
+| macOS will not open the app | See [Install](#install) for approving an unnotarized app. |
+| Query timed out | Queries and SQL runs stop after 30 seconds. Narrow the query or add a `LIMIT`. |
+| Showing the first 1000 rows | The SQL tab shows at most 1000 rows; **Export CSV** writes all of them. |
+| "… is not allowed. Enable … under Permissions" | The SQL uses a statement category that is off; see [SQL editor permissions](#sql-editor-permissions). |
+| "The run ended inside an open transaction" | The script ran `BEGIN` without `COMMIT`, so its changes were rolled back. |
 
-## Tests
+## Development
+
+You need Go 1.25.13 or newer, Node.js 20.19+ or 22.12+ with npm 10+, and the Wails CLI v2.15.0 (`make install-wails`). Linux builds also need the GTK3 and WebKit2GTK 4.1 development packages:
 
 ```bash
-cd frontend
-npm ci
-npm test -- --run
-npm run build
-npm audit --audit-level=low
-cd ..
-go test ./... -race -count=1
-go vet ./...
-wails build -clean -trimpath
+sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev   # Debian, Ubuntu
+sudo dnf install gcc pkgconf-pkg-config gtk3-devel webkit2gtk4.1-devel           # Fedora
 ```
+
+| Command | Purpose |
+|---|---|
+| `make install-deps` | Install the locked frontend dependencies (`npm ci`) |
+| `make dev` | Run the app with hot reload |
+| `make test` | Build the frontend, then run the Go tests |
+| `make frontend-test` | Run the frontend tests |
+| `make vet` / `make audit` | Run `go vet` / `govulncheck` and `npm audit` |
+| `make build` | Build for this platform into `build/bin/` |
+| `make build-linux` / `make build-macos` | Build for Linux amd64 / a universal macOS app (on macOS) |
+| `make gen-sample-db` | Rebuild `testdata/sample.sqlite` from `testdata/fixtures.sql` |
+| `make gen-big-db` | Write a one-million-row database to `/tmp/sqlite-explorer-big.db` |
+
+CI runs the tests (Go with `-race`), `go vet`, both audits, and the Linux and macOS package builds. [docs/RELEASING.md](docs/RELEASING.md) covers releases; notes for each release are in [docs/release-notes/](docs/release-notes/).
+
+Code layout:
+
+- `frontend/src/`: the React UI. Components call Go only through `api.ts`.
+- `backend/app.go`: Wails bindings, dialogs, cancellation, and error reporting.
+- `backend/db/`: database access, including the SQL statement classifier, row edits, and CSV export. The driver is [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite), so no CGO is needed.
+
+## Security
+
+- SQL from the editor runs only within the permissions above.
+- Row edits use parameterized `UPDATE … WHERE rowid = ?` statements, and only base tables can be edited.
+- Table and column names in generated SQL are always quoted; values are always bound parameters.
+- Database contents leave the computer only when you export them.
+
+## License
+
+[MIT](LICENSE)
