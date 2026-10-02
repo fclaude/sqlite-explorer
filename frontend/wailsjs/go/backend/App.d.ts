@@ -8,13 +8,13 @@ export function CloseDatabase():Promise<void>;
 
 export function DatabaseInfo():Promise<model.DatabaseInfo>;
 
-export function ExportRowsToCSV(arg1:model.ExportRequest):Promise<void>;
+export function ExportRowsToCSV(arg1:model.ExportRequest):Promise<model.ExportResult>;
 
 export function GetObjectStats(arg1:string):Promise<model.ObjectStats>;
 
 export function GetSchema():Promise<model.SchemaInfo>;
 
-export function GetTableRowCount(arg1:string):Promise<number>;
+export function GetStatementCategories():Promise<Array<model.StatementCategory>>;
 
 export function GetTableRows(arg1:model.TableRowsRequest):Promise<model.TableRowsResponse>;
 

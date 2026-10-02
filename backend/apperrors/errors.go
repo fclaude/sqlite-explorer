@@ -9,16 +9,18 @@ import (
 type Code string
 
 const (
-	CodeNoDBOpen          Code = "NO_DB_OPEN"
-	CodeNotSQLite         Code = "NOT_SQLITE"
-	CodePermission        Code = "PERMISSION_DENIED"
-	CodeCancelled         Code = "CANCELLED"
-	CodeUnknownTable      Code = "UNKNOWN_TABLE"
-	CodeInvalidColumn     Code = "INVALID_COLUMN"
-	CodeReadOnlyViolation Code = "READ_ONLY_VIOLATION"
-	CodeTimeout           Code = "TIMEOUT"
-	CodeMalformedSQL      Code = "MALFORMED_SQL"
-	CodeNotEditable       Code = "NOT_EDITABLE"
+	CodeNoDBOpen              Code = "NO_DB_OPEN"
+	CodeNotSQLite             Code = "NOT_SQLITE"
+	CodePermission            Code = "PERMISSION_DENIED"
+	CodeCancelled             Code = "CANCELLED"
+	CodeUnknownTable          Code = "UNKNOWN_TABLE"
+	CodeInvalidColumn         Code = "INVALID_COLUMN"
+	CodeReadOnlyViolation     Code = "READ_ONLY_VIOLATION"
+	CodeTimeout               Code = "TIMEOUT"
+	CodeMalformedSQL          Code = "MALFORMED_SQL"
+	CodeNotEditable           Code = "NOT_EDITABLE"
+	CodeTransactionRolledBack Code = "TRANSACTION_ROLLED_BACK"
+	CodeInternal              Code = "INTERNAL"
 )
 
 // Error is a user-facing error with a stable code.

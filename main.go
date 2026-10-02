@@ -32,6 +32,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
+		ErrorFormatter: backend.FormatError,
 	})
 
 	if err != nil {

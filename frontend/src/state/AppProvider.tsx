@@ -7,6 +7,7 @@ interface AppContextValue {
     state: AppState;
     openDatabase: () => Promise<void>;
     closeDatabase: () => Promise<void>;
+    refreshSchema: () => Promise<void>;
     selectObject: (selected: SelectedObject | null) => void;
     setTab: (tab: AppState['activeTab']) => void;
     setSidebarWidth: (width: number) => void;
@@ -27,6 +28,20 @@ export function AppProvider({children}: {children: ReactNode}) {
             const dbInfo = await WailsAPI.openDatabase();
             const schema = await WailsAPI.getSchema();
             dispatch({type: 'SET_DB', dbInfo, schema});
+        } catch (err) {
+            const {code, message, detail} = formatAPIError(err);
+            if (code === 'CANCELLED') {
+                dispatch({type: 'SET_LOADING', loading: false});
+                return;
+            }
+            dispatch({type: 'SET_ERROR', message, detail});
+        }
+    }, []);
+
+    const refreshSchema = useCallback(async () => {
+        try {
+            const schema = await WailsAPI.getSchema();
+            dispatch({type: 'SET_SCHEMA', schema});
         } catch (err) {
             const {message, detail} = formatAPIError(err);
             dispatch({type: 'SET_ERROR', message, detail});
@@ -81,6 +96,7 @@ export function AppProvider({children}: {children: ReactNode}) {
             state,
             openDatabase,
             closeDatabase,
+            refreshSchema,
             selectObject,
             setTab,
             setSidebarWidth,
@@ -88,7 +104,7 @@ export function AppProvider({children}: {children: ReactNode}) {
             clearError,
             reportTableQuery,
         }),
-        [state, openDatabase, closeDatabase, selectObject, setTab, setSidebarWidth, toggleGroup, clearError, reportTableQuery],
+        [state, openDatabase, closeDatabase, refreshSchema, selectObject, setTab, setSidebarWidth, toggleGroup, clearError, reportTableQuery],
     );
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

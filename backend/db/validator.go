@@ -1,327 +1,412 @@
 package db
 
 import (
+	"fmt"
+	"sort"
 	"strings"
-	"unicode"
 
 	"sqlite-explorer/backend/apperrors"
+	"sqlite-explorer/backend/model"
 )
 
-var allowedPragmas = map[string]bool{
-	"table_info":       true,
-	"foreign_key_list": true,
-	"index_list":       true,
-	"index_info":       true,
-	"database_list":    true,
-	"schema_version":   true,
-	"integrity_check":  true,
-	"quick_check":      true,
-	"compile_options":  true,
-	"encoding":         true,
-	"application_id":   true,
-	"user_version":     true,
+// Category groups SQL statements by what they can change. Read statements always run;
+// the other categories run only when the user enables them for the SQL editor.
+type Category string
+
+const (
+	CategoryRead        Category = "read"
+	CategoryData        Category = "data"
+	CategorySchema      Category = "schema"
+	CategoryTransaction Category = "transaction"
+	CategoryMaintenance Category = "maintenance"
+	CategoryAttach      Category = "attach"
+	CategoryPragma      Category = "pragma"
+	CategoryForbidden   Category = "forbidden"
+)
+
+type categoryInfo struct {
+	id          Category
+	label       string
+	description string
+	statements  []string
 }
 
-var pragmasWithReadOnlyArguments = map[string]bool{
-	"table_info":       true,
-	"foreign_key_list": true,
-	"index_list":       true,
-	"index_info":       true,
-	"integrity_check":  true,
-	"quick_check":      true,
+// categories lists every category in display order. Keep descriptions in sync with README.md.
+var categories = []categoryInfo{
+	{
+		id:          CategoryRead,
+		label:       "Read queries",
+		description: "Always allowed. Runs on a read-only connection.",
+		statements:  []string{"SELECT", "VALUES", "WITH … SELECT", "EXPLAIN", "read-only PRAGMAs"},
+	},
+	{
+		id:          CategoryData,
+		label:       "Data changes",
+		description: "Insert, update, and delete rows.",
+		statements:  []string{"INSERT", "REPLACE", "UPDATE", "DELETE", "WITH … INSERT/UPDATE/DELETE"},
+	},
+	{
+		id:          CategorySchema,
+		label:       "Schema changes",
+		description: "Create, alter, and drop tables, views, indexes, and triggers.",
+		statements:  []string{"CREATE", "ALTER", "DROP"},
+	},
+	{
+		id:          CategoryTransaction,
+		label:       "Transactions",
+		description: "Group statements in one run. A transaction left open when the run ends is rolled back.",
+		statements:  []string{"BEGIN", "COMMIT", "END", "ROLLBACK", "SAVEPOINT", "RELEASE"},
+	},
+	{
+		id:          CategoryMaintenance,
+		label:       "Maintenance",
+		description: "Rebuild the file or its statistics. VACUUM INTO writes a copy of the database to a new file.",
+		statements:  []string{"VACUUM", "VACUUM INTO", "ANALYZE", "REINDEX"},
+	},
+	{
+		id:          CategoryAttach,
+		label:       "Attach databases",
+		description: "Open other database files during a run. ATTACH can create a new file.",
+		statements:  []string{"ATTACH", "DETACH"},
+	},
+	{
+		id:          CategoryPragma,
+		label:       "Other PRAGMAs",
+		description: "Any PRAGMA not on the read-only list, including assignments. Connection settings last only for that run.",
+		statements:  []string{"PRAGMA name = value", "PRAGMA name(value)"},
+	},
+	{
+		id:          CategoryForbidden,
+		label:       "Never allowed",
+		description: "Can corrupt the database file.",
+		statements:  []string{"PRAGMA writable_schema"},
+	},
 }
 
-var forbiddenKeywords = map[string]bool{
-	"INSERT": true, "UPDATE": true, "DELETE": true, "DROP": true,
-	"ALTER": true, "CREATE": true, "REPLACE": true, "VACUUM": true,
-	"ATTACH": true, "DETACH": true, "TRUNCATE": true,
+// readOnlyPragmas may run without arguments on the read-only connection.
+var readOnlyPragmas = map[string]bool{
+	"application_id":    true,
+	"auto_vacuum":       true,
+	"busy_timeout":      true,
+	"cache_size":        true,
+	"collation_list":    true,
+	"compile_options":   true,
+	"data_version":      true,
+	"database_list":     true,
+	"encoding":          true,
+	"foreign_key_check": true,
+	"foreign_key_list":  true,
+	"foreign_keys":      true,
+	"freelist_count":    true,
+	"function_list":     true,
+	"index_info":        true,
+	"index_list":        true,
+	"index_xinfo":       true,
+	"integrity_check":   true,
+	"journal_mode":      true,
+	"module_list":       true,
+	"page_count":        true,
+	"page_size":         true,
+	"pragma_list":       true,
+	"quick_check":       true,
+	"schema_version":    true,
+	"synchronous":       true,
+	"table_info":        true,
+	"table_list":        true,
+	"table_xinfo":       true,
+	"user_version":      true,
 }
 
-// ValidateReadOnlySQL ensures every statement in sql is read-only.
-func ValidateReadOnlySQL(sql string) error {
-	trimmed := strings.TrimSpace(sql)
-	if trimmed == "" {
-		return apperrors.New(apperrors.CodeMalformedSQL, "SQL is empty.", "")
+// readOnlyPragmaArgs lists pragmas whose argument names an object or limit rather than a new setting.
+var readOnlyPragmaArgs = map[string]bool{
+	"foreign_key_check": true,
+	"foreign_key_list":  true,
+	"index_info":        true,
+	"index_list":        true,
+	"index_xinfo":       true,
+	"integrity_check":   true,
+	"quick_check":       true,
+	"table_info":        true,
+	"table_list":        true,
+	"table_xinfo":       true,
+}
+
+var neverAllowedPragmas = map[string]bool{
+	"writable_schema": true,
+}
+
+var keywordCategories = map[string]Category{
+	"SELECT":    CategoryRead,
+	"VALUES":    CategoryRead,
+	"EXPLAIN":   CategoryRead,
+	"INSERT":    CategoryData,
+	"REPLACE":   CategoryData,
+	"UPDATE":    CategoryData,
+	"DELETE":    CategoryData,
+	"CREATE":    CategorySchema,
+	"ALTER":     CategorySchema,
+	"DROP":      CategorySchema,
+	"BEGIN":     CategoryTransaction,
+	"COMMIT":    CategoryTransaction,
+	"END":       CategoryTransaction,
+	"ROLLBACK":  CategoryTransaction,
+	"SAVEPOINT": CategoryTransaction,
+	"RELEASE":   CategoryTransaction,
+	"VACUUM":    CategoryMaintenance,
+	"ANALYZE":   CategoryMaintenance,
+	"REINDEX":   CategoryMaintenance,
+	"ATTACH":    CategoryAttach,
+	"DETACH":    CategoryAttach,
+}
+
+// StatementCategories describes every category for the SQL editor's permissions panel.
+func StatementCategories() []model.StatementCategory {
+	out := make([]model.StatementCategory, 0, len(categories))
+	for _, c := range categories {
+		info := model.StatementCategory{
+			ID:           string(c.id),
+			Label:        c.label,
+			Description:  c.description,
+			Statements:   append([]string(nil), c.statements...),
+			Configurable: c.id != CategoryRead && c.id != CategoryForbidden,
+		}
+		if c.id == CategoryRead {
+			info.Pragmas = readOnlyPragmaNames()
+		}
+		out = append(out, info)
 	}
+	return out
+}
 
-	stmts := splitStatements(trimmed)
+func categoryLabel(c Category) string {
+	for _, info := range categories {
+		if info.id == c {
+			return info.label
+		}
+	}
+	return string(c)
+}
+
+// Policy is the set of statement categories a run may execute in addition to reads.
+type Policy map[Category]bool
+
+// ReadOnlyPolicy allows only read statements.
+var ReadOnlyPolicy = Policy{}
+
+// ParsePolicy converts category ids from the frontend into a Policy.
+func ParsePolicy(allow []string) (Policy, error) {
+	p := Policy{}
+	for _, id := range allow {
+		c := Category(id)
+		configurable := false
+		for _, info := range categories {
+			if info.id == c && c != CategoryRead && c != CategoryForbidden {
+				configurable = true
+			}
+		}
+		if !configurable {
+			return nil, apperrors.New(apperrors.CodeMalformedSQL, "Unknown statement permission.", id)
+		}
+		p[c] = true
+	}
+	return p, nil
+}
+
+func (p Policy) allows(c Category) bool {
+	return c == CategoryRead || p[c]
+}
+
+// Statement is one validated statement ready to execute.
+type Statement struct {
+	SQL      string
+	Category Category
+	Label    string
+}
+
+// Plan is a validated SQL run.
+type Plan struct {
+	Statements []Statement
+}
+
+// Writes reports whether any statement needs the read-write connection.
+func (p Plan) Writes() bool {
+	for _, s := range p.Statements {
+		if s.Category != CategoryRead {
+			return true
+		}
+	}
+	return false
+}
+
+func (p Plan) has(c Category) bool {
+	for _, s := range p.Statements {
+		if s.Category == c {
+			return true
+		}
+	}
+	return false
+}
+
+// PlanSQL splits sql into statements, classifies each one, and checks it against policy.
+func PlanSQL(sql string, policy Policy) (Plan, error) {
+	if strings.TrimSpace(sql) == "" {
+		return Plan{}, apperrors.New(apperrors.CodeMalformedSQL, "SQL is empty.", "")
+	}
+	stmts, err := splitStatements(sql)
+	if err != nil {
+		return Plan{}, err
+	}
 	if len(stmts) == 0 {
-		return apperrors.New(apperrors.CodeMalformedSQL, "SQL is empty.", "")
+		return Plan{}, apperrors.New(apperrors.CodeMalformedSQL, "SQL is empty.", "")
 	}
 
-	for _, stmt := range stmts {
-		if err := validateStatement(stmt); err != nil {
-			return err
+	plan := Plan{Statements: make([]Statement, 0, len(stmts))}
+	for i, stmt := range stmts {
+		category, label, err := classify(stmt.tokens)
+		if err != nil {
+			return Plan{}, withStatementPosition(err, i, len(stmts))
 		}
+		if category == CategoryForbidden {
+			return Plan{}, apperrors.New(
+				apperrors.CodeReadOnlyViolation,
+				statementPrefix(i, len(stmts))+label+" is never allowed because it can corrupt the database file.",
+				label,
+			)
+		}
+		if !policy.allows(category) {
+			return Plan{}, apperrors.New(
+				apperrors.CodeReadOnlyViolation,
+				fmt.Sprintf("%s%s is not allowed. Enable %q under Permissions to run it.",
+					statementPrefix(i, len(stmts)), label, categoryLabel(category)),
+				string(category),
+			)
+		}
+		plan.Statements = append(plan.Statements, Statement{SQL: stmt.text, Category: category, Label: label})
 	}
-	return nil
+	return plan, nil
 }
 
-func validateStatement(stmt string) error {
-	s := stripComments(strings.TrimSpace(stmt))
-	if s == "" {
-		return nil
-	}
+// ValidateReadOnlySQL ensures every statement in sql is a read statement.
+func ValidateReadOnlySQL(sql string) error {
+	_, err := PlanSQL(sql, ReadOnlyPolicy)
+	return err
+}
 
-	kw, rest := firstKeyword(s)
+func classify(tokens []token) (Category, string, error) {
+	first := tokens[0]
+	kw := first.keyword()
 	if kw == "" {
-		return apperrors.New(apperrors.CodeMalformedSQL, "Could not parse SQL statement.", stmt)
+		return "", "", apperrors.New(apperrors.CodeMalformedSQL, "Could not recognize the SQL statement.", first.text)
 	}
-
-	upper := strings.ToUpper(kw)
-	switch upper {
-	case "SELECT":
-		return nil
-	case "PRAGMA":
-		return validatePragma(rest)
+	switch kw {
 	case "WITH":
-		return validateWithStatement(s)
-	default:
-		if forbiddenKeywords[upper] {
-			return readOnlyViolation(upper)
-		}
-		return readOnlyViolation(upper)
-	}
-}
-
-func validatePragma(rest string) error {
-	name := pragmaName(rest)
-	if name == "" {
-		return apperrors.New(apperrors.CodeMalformedSQL, "Invalid PRAGMA statement.", rest)
-	}
-	lower := strings.ToLower(name)
-	if lower == "writable_schema" {
-		return readOnlyViolation("writable_schema")
-	}
-	if !allowedPragmas[lower] {
-		return readOnlyViolation("PRAGMA " + name)
-	}
-	tail := strings.TrimSpace(rest[len(name):])
-	if tail != "" && !pragmasWithReadOnlyArguments[lower] {
-		return readOnlyViolation("PRAGMA " + name)
-	}
-	return nil
-}
-
-func pragmaName(rest string) string {
-	rest = strings.TrimSpace(rest)
-	if rest == "" {
-		return ""
-	}
-	var b strings.Builder
-	for i, r := range rest {
-		if r == '(' || unicode.IsSpace(r) {
-			if b.Len() > 0 {
-				return b.String()
+		return classifyWith(tokens)
+	case "PRAGMA":
+		return classifyPragma(tokens[1:])
+	case "VACUUM":
+		for _, t := range tokens[1:] {
+			if t.is("INTO") {
+				return CategoryMaintenance, "VACUUM INTO", nil
 			}
-			if r == '(' {
-				return b.String()
-			}
-			continue
-		}
-		if i == 0 && (r == '"' || r == '\'' || r == '`') {
-			return ""
-		}
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
-			b.WriteRune(r)
-		} else {
-			break
 		}
 	}
-	return b.String()
+	if c, ok := keywordCategories[kw]; ok {
+		return c, kw, nil
+	}
+	return "", "", apperrors.New(apperrors.CodeMalformedSQL, "Unrecognized SQL statement: "+kw+".", kw)
 }
 
-func validateWithStatement(s string) error {
-	// Reject mutating CTE bodies or outer statements.
-	upper := strings.ToUpper(stripStringLiterals(s))
-	forbidden := []string{
-		" INSERT ", " UPDATE ", " DELETE ", " DROP ", " CREATE ",
-		" ALTER ", " REPLACE ", " ATTACH ", " DETACH ", " VACUUM ",
-	}
-	padded := " " + upper + " "
-	for _, f := range forbidden {
-		if strings.Contains(padded, f) {
-			kw := strings.TrimSpace(f)
-			return readOnlyViolation(kw)
-		}
-	}
-	// Outer query must be SELECT (not WITH ... INSERT etc. as final op).
-	if !strings.Contains(upper, "SELECT") {
-		return readOnlyViolation("WITH")
-	}
-	return nil
-}
-
-func readOnlyViolation(keyword string) error {
-	return apperrors.New(
-		apperrors.CodeReadOnlyViolation,
-		"Read-only mode: "+keyword+" statements are not allowed.",
-		keyword,
-	)
-}
-
-func stripComments(s string) string {
-	var b strings.Builder
-	i := 0
-	for i < len(s) {
-		if i+1 < len(s) && s[i] == '-' && s[i+1] == '-' {
-			for i < len(s) && s[i] != '\n' {
-				i++
-			}
-			continue
-		}
-		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
-			i += 2
-			for i+1 < len(s) && !(s[i] == '*' && s[i+1] == '/') {
-				i++
-			}
-			if i+1 < len(s) {
-				i += 2
-			}
-			continue
-		}
-		b.WriteByte(s[i])
-		i++
-	}
-	return b.String()
-}
-
-func stripStringLiterals(s string) string {
-	var b strings.Builder
-	inSingle := false
-	inDouble := false
-	i := 0
-	for i < len(s) {
-		c := s[i]
-		if inSingle {
-			if c == '\'' {
-				if i+1 < len(s) && s[i+1] == '\'' {
-					i += 2
-					continue
-				}
-				inSingle = false
-			}
-			i++
-			continue
-		}
-		if inDouble {
-			if c == '"' {
-				if i+1 < len(s) && s[i+1] == '"' {
-					i += 2
-					continue
-				}
-				inDouble = false
-			}
-			i++
-			continue
-		}
-		if c == '\'' {
-			inSingle = true
-			b.WriteByte(' ')
-			i++
-			continue
-		}
-		if c == '"' {
-			inDouble = true
-			b.WriteByte(' ')
-			i++
-			continue
-		}
-		b.WriteByte(c)
-		i++
-	}
-	return b.String()
-}
-
-func firstKeyword(s string) (string, string) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", ""
-	}
-	i := 0
-	for i < len(s) && unicode.IsSpace(rune(s[i])) {
-		i++
-	}
-	start := i
-	for i < len(s) {
-		r := rune(s[i])
-		if unicode.IsLetter(r) || r == '_' || (i > start && unicode.IsDigit(r)) {
-			i++
-			continue
-		}
-		break
-	}
-	if i == start {
-		return "", s
-	}
-	return s[start:i], strings.TrimSpace(s[i:])
-}
-
-func splitStatements(sql string) []string {
-	var stmts []string
-	var b strings.Builder
-	inSingle := false
-	inDouble := false
+// classifyWith finds the statement that follows the common table expressions. Every CTE body
+// is parenthesized, so the main statement is the first top-level keyword after a closing
+// parenthesis that is not AS (which follows a CTE column list).
+func classifyWith(tokens []token) (Category, string, error) {
 	depth := 0
-
-	for i := 0; i < len(sql); i++ {
-		c := sql[i]
-
-		if inSingle {
-			b.WriteByte(c)
-			if c == '\'' {
-				if i+1 < len(sql) && sql[i+1] == '\'' {
-					b.WriteByte(sql[i+1])
-					i++
-				} else {
-					inSingle = false
-				}
-			}
-			continue
-		}
-		if inDouble {
-			b.WriteByte(c)
-			if c == '"' {
-				if i+1 < len(sql) && sql[i+1] == '"' {
-					b.WriteByte(sql[i+1])
-					i++
-				} else {
-					inDouble = false
-				}
-			}
-			continue
-		}
-
-		switch c {
-		case '\'':
-			inSingle = true
-			b.WriteByte(c)
-		case '"':
-			inDouble = true
-			b.WriteByte(c)
-		case '(':
+	prevClose := false
+	for _, t := range tokens[1:] {
+		switch t.kind {
+		case tokLParen:
 			depth++
-			b.WriteByte(c)
-		case ')':
+			prevClose = false
+			continue
+		case tokRParen:
 			if depth > 0 {
 				depth--
 			}
-			b.WriteByte(c)
-		case ';':
-			if depth == 0 {
-				if stmt := strings.TrimSpace(b.String()); stmt != "" {
-					stmts = append(stmts, stmt)
-				}
-				b.Reset()
-				continue
+			prevClose = depth == 0
+			continue
+		}
+		if depth == 0 && prevClose && t.kind == tokWord && !t.is("AS") {
+			switch kw := t.keyword(); kw {
+			case "SELECT", "VALUES":
+				return CategoryRead, "WITH … " + kw, nil
+			case "INSERT", "REPLACE", "UPDATE", "DELETE":
+				return CategoryData, "WITH … " + kw, nil
+			default:
+				return "", "", apperrors.New(apperrors.CodeMalformedSQL, "Could not recognize the statement after WITH.", kw)
 			}
-			b.WriteByte(c)
-		default:
-			b.WriteByte(c)
+		}
+		prevClose = false
+	}
+	return "", "", apperrors.New(apperrors.CodeMalformedSQL, "WITH must be followed by a statement.", "")
+}
+
+func classifyPragma(rest []token) (Category, string, error) {
+	// PRAGMA [schema.]name [= value | (value)]
+	if len(rest) == 0 || (rest[0].kind != tokWord && rest[0].kind != tokQuoted) {
+		return "", "", apperrors.New(apperrors.CodeMalformedSQL, "Invalid PRAGMA statement.", "")
+	}
+	nameTok := rest[0]
+	args := rest[1:]
+	if len(rest) >= 3 && rest[1].kind == tokOther && rest[1].text == "." {
+		nameTok = rest[2]
+		args = rest[3:]
+	}
+	if nameTok.kind != tokWord {
+		return "", "", apperrors.New(apperrors.CodeMalformedSQL, "Invalid PRAGMA name.", nameTok.text)
+	}
+	name := asciiLower(nameTok.text)
+	label := "PRAGMA " + name
+	switch {
+	case neverAllowedPragmas[name]:
+		return CategoryForbidden, label, nil
+	case len(args) == 0 && readOnlyPragmas[name]:
+		return CategoryRead, label, nil
+	case len(args) > 0 && readOnlyPragmaArgs[name]:
+		return CategoryRead, label, nil
+	}
+	return CategoryPragma, label, nil
+}
+
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c - 'A' + 'a'
 		}
 	}
-	if stmt := strings.TrimSpace(b.String()); stmt != "" {
-		stmts = append(stmts, stmt)
+	return string(b)
+}
+
+func statementPrefix(i, n int) string {
+	if n <= 1 {
+		return ""
 	}
-	return stmts
+	return fmt.Sprintf("Statement %d of %d: ", i+1, n)
+}
+
+func withStatementPosition(err error, i, n int) error {
+	appErr, ok := apperrors.As(err)
+	if !ok || n <= 1 {
+		return err
+	}
+	return apperrors.New(appErr.Code, statementPrefix(i, n)+appErr.Message, appErr.Detail)
+}
+
+func readOnlyPragmaNames() []string {
+	names := make([]string, 0, len(readOnlyPragmas))
+	for name := range readOnlyPragmas {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

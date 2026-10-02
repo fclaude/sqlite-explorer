@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useState} from 'react';
-import {formatAPIError, model} from '../api';
+import {APIError, formatAPIError, model} from '../api';
 import {cellTypeLabel, RecordRowContext, rowLabel} from '../utils/cellDetail';
-import {fieldDraft, hasDraftChanges} from '../utils/recordSave';
+import {fieldDraft, fieldEncoding, hasDraftChanges, isFieldEditable} from '../utils/recordSave';
+import {ErrorNotice} from './ErrorNotice';
 import './DetailModal.css';
 
 interface RecordDetailModalProps {
@@ -14,7 +15,7 @@ interface RecordDetailModalProps {
 export function RecordDetailModal({context, onClose, onOpenCell, onSave}: RecordDetailModalProps) {
     const [drafts, setDrafts] = useState<Record<string, string>>({});
     const [saving, setSaving] = useState(false);
-    const [saveError, setSaveError] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<APIError | null>(null);
 
     useEffect(() => {
         if (!context) {
@@ -69,7 +70,7 @@ export function RecordDetailModal({context, onClose, onOpenCell, onSave}: Record
             await onSave(drafts);
             onClose();
         } catch (err) {
-            setSaveError(formatAPIError(err).message);
+            setSaveError(formatAPIError(err));
         } finally {
             setSaving(false);
         }
@@ -121,17 +122,15 @@ export function RecordDetailModal({context, onClose, onOpenCell, onSave}: Record
                 </header>
 
                 <p className="detail-modal-hint">{hint}</p>
-                {saveError && (
-                    <p className="detail-modal-error" role="alert">
-                        {saveError}
-                    </p>
-                )}
+                <ErrorNotice error={saveError} className="detail-modal-error" />
 
                 <div className="record-detail-fields">
                     {context.columns.map((col, i) => {
                         const cell = context.cells[i];
                         const meta = context.columnMeta?.find((c) => c.name === col.name);
                         const isPk = (meta?.primaryKey ?? 0) > 0;
+                        const editable = isFieldEditable(cell);
+                        const hex = fieldEncoding(cell, meta) === 'hex';
                         return (
                             <div key={col.name} className="record-detail-field">
                                 <div className="record-detail-field-head">
@@ -139,7 +138,10 @@ export function RecordDetailModal({context, onClose, onOpenCell, onSave}: Record
                                         {col.name}
                                         {isPk ? ' (PK)' : ''}
                                     </label>
-                                    <span className="record-detail-type">{cellTypeLabel(cell)}</span>
+                                    <span className="record-detail-type">
+                                        {cellTypeLabel(cell)}
+                                        {hex && context.editable ? ' · hex' : ''}
+                                    </span>
                                     {onOpenCell && (
                                         <button
                                             type="button"
@@ -157,11 +159,16 @@ export function RecordDetailModal({context, onClose, onOpenCell, onSave}: Record
                                     onChange={(e) =>
                                         setDrafts((prev) => ({...prev, [col.name]: e.target.value}))
                                     }
-                                    disabled={!context.editable || saving}
-                                    placeholder={cell.kind === 'null' ? 'NULL' : undefined}
+                                    disabled={!context.editable || saving || !editable}
+                                    placeholder={cell.kind === 'null' ? (hex ? 'NULL (enter hex bytes, e.g. 0x00ff)' : 'NULL') : undefined}
                                     rows={Math.min(12, Math.max(2, Math.ceil((drafts[col.name]?.length ?? 0) / 80)))}
                                     spellCheck={false}
                                 />
+                                {!editable && context.editable && (
+                                    <p className="record-detail-note">
+                                        Only a preview of this BLOB is loaded, so it can't be edited here.
+                                    </p>
+                                )}
                             </div>
                         );
                     })}

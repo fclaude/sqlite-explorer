@@ -4,8 +4,10 @@ import {
     buildColumnUpdates,
     draftToColumnUpdate,
     fieldDraft,
+    fieldEncoding,
     hasDraftChanges,
     hasFieldDraftChange,
+    isFieldEditable,
 } from './recordSave';
 
 describe('buildColumnUpdates', () => {
@@ -73,5 +75,44 @@ describe('hasFieldDraftChange', () => {
         const cell: model.CellValue = {kind: 'text', value: 'a'};
         expect(hasFieldDraftChange('a', cell)).toBe(false);
         expect(hasFieldDraftChange('b', cell)).toBe(true);
+    });
+});
+
+describe('field encoding', () => {
+    const textMeta = new model.ColumnInfo({name: 'name', type: 'TEXT', notNull: false});
+    const blobMeta = new model.ColumnInfo({name: 'data', type: 'BLOB', notNull: false});
+
+    it('never treats typed text as hex', () => {
+        const update = draftToColumnUpdate('name', '0xcafe', {kind: 'text', value: 'a'}, textMeta);
+        expect(update).toEqual({column: 'name', text: '0xcafe', isNull: false, encoding: ''});
+    });
+
+    it('edits BLOB cells and NULL cells of BLOB columns as hex', () => {
+        const blob: model.CellValue = {kind: 'blob', value: {hex: '00ff', size: 2}};
+        expect(fieldEncoding(blob, textMeta)).toBe('hex');
+        expect(fieldEncoding({kind: 'null', value: null}, blobMeta)).toBe('hex');
+        expect(fieldEncoding({kind: 'null', value: null}, textMeta)).toBe('');
+        expect(draftToColumnUpdate('data', '0x0102', blob, blobMeta).encoding).toBe('hex');
+    });
+
+    it('sends an empty BLOB for a cleared required hex field', () => {
+        const meta = new model.ColumnInfo({name: 'data', type: 'BLOB', notNull: true});
+        const blob: model.CellValue = {kind: 'blob', value: {hex: '00', size: 1}};
+        expect(draftToColumnUpdate('data', '', blob, meta)).toEqual({
+            column: 'data', text: '', isNull: false, encoding: 'hex',
+        });
+    });
+
+    it('refuses to save a truncated BLOB preview', () => {
+        const preview: model.CellValue = {kind: 'blob', value: {hex: 'ab'.repeat(64), size: 200}};
+        expect(isFieldEditable(preview)).toBe(false);
+        expect(() => draftToColumnUpdate('data', '0x00', preview, blobMeta)).toThrow(/too large/);
+        const updates = buildColumnUpdates(
+            [{name: 'data', type: 'BLOB'}],
+            [preview],
+            {data: '0x00'},
+            [blobMeta],
+        );
+        expect(updates).toEqual([]);
     });
 });

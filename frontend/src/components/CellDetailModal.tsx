@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {formatAPIError} from '../api';
+import {APIError, formatAPIError} from '../api';
 import {CellDetailContext, cellDetailText, cellTypeLabel, rowLabel} from '../utils/cellDetail';
-import {hasFieldDraftChange} from '../utils/recordSave';
+import {fieldEncoding, hasFieldDraftChange, isFieldEditable} from '../utils/recordSave';
+import {ErrorNotice} from './ErrorNotice';
 import './DetailModal.css';
 
 interface CellDetailModalProps {
@@ -15,7 +16,7 @@ export function CellDetailModal({context, onClose, onViewRow, onSave}: CellDetai
     const [draft, setDraft] = useState('');
     const [copied, setCopied] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [saveError, setSaveError] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<APIError | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -65,7 +66,7 @@ export function CellDetailModal({context, onClose, onViewRow, onSave}: CellDetai
             await onSave(draft);
             onClose();
         } catch (err) {
-            setSaveError(formatAPIError(err).message);
+            setSaveError(formatAPIError(err));
         } finally {
             setSaving(false);
         }
@@ -80,18 +81,28 @@ export function CellDetailModal({context, onClose, onViewRow, onSave}: CellDetai
             ? `${context.tableName}.${context.columnName}`
             : context.columnName;
 
+    const fieldEditable = isFieldEditable(context.cell);
+    const meta = context.columnMeta?.find((c) => c.name === context.columnName);
+    const hex = fieldEncoding(context.cell, meta) === 'hex';
     const canSave =
         context.editable &&
+        fieldEditable &&
         !!onSave &&
         context.rowId != null &&
         hasFieldDraftChange(draft, context.cell);
 
-    const hint =
-        context.editable && context.source === 'table'
-            ? 'Edit this field and click Save to update only this column.'
-            : context.source === 'query'
-              ? 'Query results are read-only.'
-              : 'Edit to copy or inspect. Use View full row to edit table rows.';
+    let hint: string;
+    if (context.source === 'query') {
+        hint = 'Query results are read-only.';
+    } else if (!context.editable) {
+        hint = 'Edit to copy or inspect. Use View full row to edit table rows.';
+    } else if (!fieldEditable) {
+        hint = "Only a preview of this BLOB is loaded, so it can't be edited here.";
+    } else if (hex) {
+        hint = 'Edit the bytes as hex (for example 0x00ff) and click Save to update only this column.';
+    } else {
+        hint = 'Edit this field and click Save to update only this column.';
+    }
 
     return (
         <div className="detail-modal-backdrop" onClick={onClose} role="presentation">
@@ -119,11 +130,7 @@ export function CellDetailModal({context, onClose, onViewRow, onSave}: CellDetai
                 </header>
 
                 <p className="detail-modal-hint">{hint}</p>
-                {saveError && (
-                    <p className="detail-modal-error" role="alert">
-                        {saveError}
-                    </p>
-                )}
+                <ErrorNotice error={saveError} className="detail-modal-error" />
 
                 <textarea
                     ref={textareaRef}
@@ -132,6 +139,7 @@ export function CellDetailModal({context, onClose, onViewRow, onSave}: CellDetai
                     onChange={(e) => setDraft(e.target.value)}
                     spellCheck={false}
                     disabled={saving}
+                    readOnly={context.editable && !fieldEditable}
                     placeholder={context.cell.kind === 'null' ? 'NULL' : undefined}
                 />
 

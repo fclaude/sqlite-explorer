@@ -49,6 +49,15 @@ export function cellDetailText(cell: model.CellValue): string {
     }
 }
 
+/** True when a BLOB cell holds only a preview of its bytes, so it cannot be edited in place. */
+export function isTruncatedBlob(cell: model.CellValue): boolean {
+    if (cell.kind !== 'blob') {
+        return false;
+    }
+    const v = cell.value as {hex?: string; size?: number};
+    return (v?.size ?? 0) > (v?.hex?.length ?? 0) / 2;
+}
+
 export function cellTypeLabel(cell: model.CellValue): string {
     switch (cell.kind) {
         case 'null':

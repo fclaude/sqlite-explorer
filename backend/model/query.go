@@ -41,17 +41,33 @@ type TableRowsResponse struct {
 	DurationMs int64          `json:"durationMs"`
 }
 
-// QueryRequest runs arbitrary read-only SQL.
+// QueryRequest runs SQL from the editor. Read statements always run; Allow lists the
+// additional statement categories (see GetStatementCategories) the user enabled.
 type QueryRequest struct {
-	SQL string `json:"sql"`
+	SQL   string   `json:"sql"`
+	Allow []string `json:"allow"`
 }
 
-// QueryResponse holds arbitrary query results.
+// QueryResponse holds the result rows of the last statement in a run.
 type QueryResponse struct {
-	Columns    []ColumnResult `json:"columns"`
-	Rows       [][]CellValue  `json:"rows"`
-	RowCount   int            `json:"rowCount"`
-	Truncated  bool           `json:"truncated"`
-	DurationMs int64          `json:"durationMs"`
-	QueryID    int64          `json:"queryId"`
+	Columns        []ColumnResult `json:"columns"`
+	Rows           [][]CellValue  `json:"rows"`
+	RowCount       int            `json:"rowCount"`
+	Truncated      bool           `json:"truncated"`
+	DurationMs     int64          `json:"durationMs"`
+	QueryID        int64          `json:"queryId"`
+	StatementCount int            `json:"statementCount"`
+	RowsAffected   int64          `json:"rowsAffected"`
+	Changed        bool           `json:"changed"`
+	SchemaChanged  bool           `json:"schemaChanged"`
+}
+
+// StatementCategory describes a group of SQL statements for the editor's permissions panel.
+type StatementCategory struct {
+	ID           string   `json:"id"`
+	Label        string   `json:"label"`
+	Description  string   `json:"description"`
+	Statements   []string `json:"statements"`
+	Pragmas      []string `json:"pragmas,omitempty"`
+	Configurable bool     `json:"configurable"`
 }

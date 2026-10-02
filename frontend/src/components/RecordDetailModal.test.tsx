@@ -65,3 +65,33 @@ describe('RecordDetailModal', () => {
         expect(screen.getByText(/read-only/i)).toBeInTheDocument();
     });
 });
+
+describe('RecordDetailModal BLOB fields', () => {
+    it('locks preview-only BLOBs and marks hex fields', () => {
+        render(
+            <RecordDetailModal
+                context={{
+                    ...baseContext,
+                    columnMeta: [
+                        new model.ColumnInfo({name: 'small', type: 'BLOB', notNull: false, primaryKey: 0}),
+                        new model.ColumnInfo({name: 'big', type: 'BLOB', notNull: false, primaryKey: 0}),
+                    ],
+                    columns: [
+                        {name: 'small', type: 'BLOB'},
+                        {name: 'big', type: 'BLOB'},
+                    ],
+                    cells: [
+                        {kind: 'blob', value: {hex: '00ff', size: 2}},
+                        {kind: 'blob', value: {hex: 'ab'.repeat(64), size: 200}},
+                    ],
+                }}
+                onClose={() => {}}
+                onSave={vi.fn()}
+            />,
+        );
+        expect(screen.getByLabelText('small')).not.toBeDisabled();
+        expect(screen.getByLabelText('big')).toBeDisabled();
+        expect(screen.getAllByText(/· hex/)).toHaveLength(2);
+        expect(screen.getByText(/Only a preview of this BLOB is loaded/)).toBeInTheDocument();
+    });
+});

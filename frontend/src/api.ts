@@ -2,6 +2,7 @@ import {
     CloseDatabase,
     DatabaseInfo,
     GetSchema,
+    GetStatementCategories,
     GetTableRows,
     GetObjectStats,
     OpenDatabase,
@@ -37,17 +38,22 @@ export const WailsAPI = {
         return GetObjectStats(name);
     },
 
-    runQuery(req: model.QueryRequest): Promise<model.QueryResponse> {
-        return RunQuery(req);
+    runQuery(req: {sql: string; allow: string[]}): Promise<model.QueryResponse> {
+        return RunQuery(new model.QueryRequest(req));
     },
 
     cancelQuery(queryId: number): Promise<void> {
         return CancelQuery(queryId);
     },
 
-    exportTablePage(tableRows: model.TableRowsRequest): Promise<void> {
+    getStatementCategories(): Promise<model.StatementCategory[]> {
+        return GetStatementCategories();
+    },
+
+    /** Exports the current page, or with scope 'all' every row matching the filter and sort. */
+    exportTable(tableRows: model.TableRowsRequest, scope: 'page' | 'all'): Promise<model.ExportResult> {
         const req = new model.ExportRequest({
-            source: 'tablePage',
+            source: scope === 'all' ? 'table' : 'tablePage',
             tableRows: tableRows,
         });
         return ExportRowsToCSV(req);
@@ -56,7 +62,7 @@ export const WailsAPI = {
     updateTableRow(params: {
         table: string;
         rowId: string;
-        updates: Array<{column: string; text: string; isNull: boolean}>;
+        updates: Array<{column: string; text: string; isNull: boolean; encoding: string}>;
     }): Promise<model.UpdateTableRowResponse> {
         return UpdateTableRow(
             new model.UpdateTableRowRequest({
@@ -67,7 +73,8 @@ export const WailsAPI = {
         );
     },
 
-    exportQueryResult(sql: string): Promise<void> {
+    /** Runs a read-only query again and exports all of its rows. */
+    exportQueryResult(sql: string): Promise<model.ExportResult> {
         const req = new model.ExportRequest({
             source: 'queryResult',
             sql: sql,
@@ -110,12 +117,29 @@ export function blobCellTooltip(cell: model.CellValue): string | undefined {
 
 export type {model};
 
-/** Maps Wails/Go errors to user-facing text (no stack traces). */
-export function formatAPIError(err: unknown): {message: string; detail: string} {
-    if (err instanceof Error) {
-        const message = err.message.trim() || 'An unexpected error occurred.';
-        return {message, detail: ''};
+export interface APIError {
+    code: string;
+    message: string;
+    detail: string;
+}
+
+/**
+ * Maps Wails/Go errors to user-facing text. The backend sends application errors as a JSON
+ * string ({code, message, detail}) because the Wails runtime only preserves string errors.
+ */
+export function formatAPIError(err: unknown): APIError {
+    const raw = (err instanceof Error ? err.message : String(err ?? '')).trim();
+    if (raw.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(raw) as Partial<APIError>;
+            if (typeof parsed.message === 'string') {
+                const message = parsed.message.trim() || 'An unexpected error occurred.';
+                const detail = typeof parsed.detail === 'string' && parsed.detail !== message ? parsed.detail : '';
+                return {code: typeof parsed.code === 'string' ? parsed.code : '', message, detail};
+            }
+        } catch {
+            // Not a structured error; show it as text.
+        }
     }
-    const message = String(err).trim() || 'An unexpected error occurred.';
-    return {message, detail: ''};
+    return {code: '', message: raw || 'An unexpected error occurred.', detail: ''};
 }

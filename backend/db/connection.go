@@ -1,17 +1,18 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
-	"sync"
-
 	"fmt"
-	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
+
+	_ "modernc.org/sqlite" // register pure-Go SQLite driver
 
 	"sqlite-explorer/backend/apperrors"
 )
@@ -24,15 +25,23 @@ type countCacheKey struct {
 	filter string
 }
 
+// maxCachedCounts bounds the row count cache; filter strings typed by the user are keys.
+const maxCachedCounts = 256
+
 // DB wraps a SQLite connection to a single database file.
 type DB struct {
-	sql           *sql.DB
-	querySQL      *sql.DB
-	path          string
-	readOnly      bool
-	openedAt      time.Time
+	sql      *sql.DB
+	querySQL *sql.DB
+	// versionConn is a dedicated read-only connection for PRAGMA data_version, which
+	// changes whenever any other connection or process commits to the file.
+	versionConn *sql.Conn
+	path        string
+	readOnly    bool
+	openedAt    time.Time
+
+	countMu       sync.Mutex
+	countVersion  int64
 	rowCountCache map[countCacheKey]int64
-	countMu       sync.RWMutex
 }
 
 // Open opens a SQLite database at path. Ad-hoc SQL always runs through a separate
@@ -86,9 +95,19 @@ func Open(path string, readOnly bool) (*DB, error) {
 		}
 	}
 
+	versionConn, err := queryDB.Conn(context.Background())
+	if err != nil {
+		if queryDB != sqlDB {
+			_ = queryDB.Close()
+		}
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("open data version connection: %w", err)
+	}
+
 	return &DB{
 		sql:           sqlDB,
 		querySQL:      queryDB,
+		versionConn:   versionConn,
 		path:          absPath,
 		readOnly:      readOnly,
 		openedAt:      time.Now(),
@@ -96,7 +115,8 @@ func Open(path string, readOnly bool) (*DB, error) {
 	}, nil
 }
 
-// buildDSN constructs a modernc.org/sqlite DSN. The file path is URL-escaped.
+// buildDSN constructs a modernc.org/sqlite DSN. The file path is URL-escaped. Read-only
+// connections also set query_only: mode=ro alone still allows VACUUM INTO and temporary objects.
 func buildDSN(absPath string, readOnly bool) string {
 	// SQLite file URIs use forward slashes even on Windows.
 	filePath := filepath.ToSlash(absPath)
@@ -113,6 +133,7 @@ func buildDSN(absPath string, readOnly bool) string {
 	q := u.Query()
 	if readOnly {
 		q.Set("mode", "ro")
+		q.Set("_pragma", "query_only(1)")
 	}
 	u.RawQuery = q.Encode()
 	return u.String()
@@ -142,11 +163,14 @@ func (d *DB) Close() error {
 	if d == nil || d.sql == nil {
 		return nil
 	}
-	var queryErr error
+	var versionErr, queryErr error
+	if d.versionConn != nil {
+		versionErr = d.versionConn.Close()
+	}
 	if d.querySQL != nil && d.querySQL != d.sql {
 		queryErr = d.querySQL.Close()
 	}
-	return errors.Join(d.sql.Close(), queryErr)
+	return errors.Join(versionErr, d.sql.Close(), queryErr)
 }
 
 // Path returns the absolute filesystem path of the open database.
@@ -157,11 +181,6 @@ func (d *DB) Path() string {
 // ReadOnly reports whether the connection was opened read-only.
 func (d *DB) ReadOnly() bool {
 	return d.readOnly
-}
-
-// SQL returns the underlying *sql.DB (for internal packages only).
-func (d *DB) SQL() *sql.DB {
-	return d.sql
 }
 
 // OpenedAt returns when the connection was established.

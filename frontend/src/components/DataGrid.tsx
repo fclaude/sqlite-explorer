@@ -1,8 +1,9 @@
-import {useCallback, useEffect, useState} from 'react';
-import {formatAPIError, model, WailsAPI} from '../api';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {APIError, formatAPIError, model, WailsAPI} from '../api';
 import {useDebouncedLoading} from '../hooks/useDebouncedLoading';
 import {useApp} from '../state/AppProvider';
 import {buildColumnUpdates, draftToColumnUpdate} from '../utils/recordSave';
+import {ErrorNotice} from './ErrorNotice';
 import {LoadingOverlay} from './LoadingOverlay';
 import {CellDetailModal} from './CellDetailModal';
 import {RecordDetailModal} from './RecordDetailModal';
@@ -22,6 +23,10 @@ interface DataGridProps {
 
 export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps) {
     const {reportTableQuery, state} = useApp();
+    const tableName =
+        selected && (selected.kind === 'table' || selected.kind === 'view') ? selected.name : null;
+
+    const [viewTable, setViewTable] = useState(tableName);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(100);
     const [sortColumn, setSortColumn] = useState('');
@@ -30,16 +35,32 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
     const [filterInput, setFilterInput] = useState('');
     const [data, setData] = useState<model.TableRowsResponse | null>(null);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<APIError | null>(null);
     const [exporting, setExporting] = useState(false);
+    const [notice, setNotice] = useState<string | null>(null);
     const showLoading = useDebouncedLoading(loading);
     const [cellDetail, setCellDetail] = useState<CellDetailContext | null>(null);
     const [recordDetail, setRecordDetail] = useState<RecordRowContext | null>(null);
+    const requestRef = useRef(0);
 
-    const tableName =
-        selected && (selected.kind === 'table' || selected.kind === 'view') ? selected.name : null;
+    // Reset the view while rendering (not in an effect) so the first fetch for a newly
+    // selected table never uses the previous table's page, sort, or filter.
+    if (viewTable !== tableName) {
+        setViewTable(tableName);
+        setPage(1);
+        setSortColumn('');
+        setSortDesc(false);
+        setFilter('');
+        setFilterInput('');
+        setData(null);
+        setError(null);
+        setNotice(null);
+        setCellDetail(null);
+        setRecordDetail(null);
+    }
 
     const loadRows = useCallback(async () => {
+        const requestId = ++requestRef.current;
         if (!tableName) {
             setData(null);
             return;
@@ -56,6 +77,9 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                 filter,
                 withTotal: true,
             });
+            if (requestId !== requestRef.current) {
+                return;
+            }
             setData(resp);
             const total = resp.totalRows ?? undefined;
             const pageInfo = total != null
@@ -63,35 +87,38 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                 : `Page ${resp.page} | rows ${resp.rows?.length ?? 0}`;
             reportTableQuery(resp.durationMs ?? 0, pageInfo, false);
         } catch (err) {
-            const {message} = formatAPIError(err);
-            setError(message);
+            if (requestId !== requestRef.current) {
+                return;
+            }
+            setError(formatAPIError(err));
             setData(null);
             reportTableQuery(0, null, false);
         } finally {
-            setLoading(false);
+            if (requestId === requestRef.current) {
+                setLoading(false);
+            }
         }
     }, [tableName, page, pageSize, sortColumn, sortDesc, filter, reportTableQuery]);
 
     useEffect(() => {
-        setPage(1);
-        setSortColumn('');
-        setSortDesc(false);
-        setFilter('');
-        setFilterInput('');
-    }, [tableName]);
-
-    useEffect(() => {
-        const t = setTimeout(() => setFilter(filterInput), 300);
+        if (filterInput === filter) {
+            return;
+        }
+        const t = setTimeout(() => {
+            setFilter(filterInput);
+            setPage(1);
+        }, 300);
         return () => clearTimeout(t);
-    }, [filterInput]);
-
-    useEffect(() => {
-        setPage(1);
-    }, [pageSize, filter, sortColumn, sortDesc]);
+    }, [filterInput, filter]);
 
     useEffect(() => {
         loadRows();
     }, [loadRows]);
+
+    // Ignore responses that arrive after the grid is gone.
+    useEffect(() => () => {
+        requestRef.current++;
+    }, []);
 
     if (!hasDatabase) {
         return (
@@ -116,23 +143,25 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
     const total = data?.totalRows;
     const maxPage = total != null ? Math.max(1, Math.ceil(total / pageSize)) : null;
 
-    const exportCSV = async () => {
-        if (!tableName) {
-            return;
-        }
+    const exportCSV = async (scope: 'page' | 'all') => {
         setExporting(true);
+        setNotice(null);
+        setError(null);
         try {
-            await WailsAPI.exportTablePage({
-                table: tableName,
-                page,
-                pageSize,
-                sortColumn,
-                sortDesc,
-                filter,
-                withTotal: false,
-            });
+            const result = await WailsAPI.exportTable(
+                {table: tableName, page, pageSize, sortColumn, sortDesc, filter, withTotal: false},
+                scope,
+            );
+            if (result.path) {
+                setNotice(`Exported ${result.rowCount} ${result.rowCount === 1 ? 'row' : 'rows'} to ${result.path}`);
+            }
         } catch (err) {
-            setError(formatAPIError(err).message);
+            const apiErr = formatAPIError(err);
+            if (apiErr.code === 'CANCELLED') {
+                setNotice('Export cancelled.');
+            } else {
+                setError(apiErr);
+            }
         } finally {
             setExporting(false);
         }
@@ -145,6 +174,7 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
             setSortColumn(col);
             setSortDesc(false);
         }
+        setPage(1);
     };
 
     const columnMeta =
@@ -228,6 +258,8 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
         }
     };
 
+    const exportDisabled = loading || exporting || !data?.rows?.length;
+
     return (
         <div className="data-grid panel-with-overlay">
             <div className="data-grid-toolbar">
@@ -249,7 +281,10 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                     Page size
                     <select
                         value={pageSize}
-                        onChange={(e) => setPageSize(Number(e.target.value))}
+                        onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                        }}
                         className="data-grid-select"
                     >
                         {PAGE_SIZES.map((n) => (
@@ -257,14 +292,35 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                         ))}
                     </select>
                 </label>
-                <button
-                    type="button"
-                    className="btn"
-                    disabled={loading || exporting || !data?.rows?.length}
-                    onClick={exportCSV}
-                >
-                    Export CSV
-                </button>
+                {exporting ? (
+                    <>
+                        <span className="data-grid-exporting">Exporting…</span>
+                        <button type="button" className="btn" onClick={() => WailsAPI.cancelQuery(0)}>
+                            Cancel export
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            type="button"
+                            className="btn"
+                            disabled={exportDisabled}
+                            onClick={() => exportCSV('page')}
+                            title="Export the rows on this page to CSV"
+                        >
+                            Export page
+                        </button>
+                        <button
+                            type="button"
+                            className="btn"
+                            disabled={exportDisabled}
+                            onClick={() => exportCSV('all')}
+                            title={filter ? 'Export every row matching the filter to CSV' : 'Export every row to CSV'}
+                        >
+                            {filter ? 'Export all matches' : 'Export all rows'}
+                        </button>
+                    </>
+                )}
                 <div className="data-grid-pager">
                     <button
                         type="button"
@@ -289,7 +345,8 @@ export function DataGrid({selected, hasDatabase, onOpenDatabase}: DataGridProps)
                 </div>
             </div>
 
-            {error && <p className="data-grid-error" role="alert">{error}</p>}
+            <ErrorNotice error={error} className="data-grid-error" />
+            {notice && <p className="data-grid-notice" role="status">{notice}</p>}
 
             <div className="data-grid-table-wrap">
                 {showLoading && <LoadingOverlay label="Loading rows..." />}

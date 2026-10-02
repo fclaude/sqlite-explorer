@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {model} from '../api';
-import {cellDetailText, isCellExpandable} from './cellDetail';
+import {cellDetailText, isCellExpandable, isTruncatedBlob} from './cellDetail';
 
 describe('cellDetailText', () => {
     it('returns full text for long strings', () => {
@@ -24,5 +24,13 @@ describe('isCellExpandable', () => {
     it('marks long text expandable', () => {
         const cell: model.CellValue = {kind: 'text', value: 'x'.repeat(60)};
         expect(isCellExpandable(cell)).toBe(true);
+    });
+});
+
+describe('isTruncatedBlob', () => {
+    it('detects preview-only BLOBs', () => {
+        expect(isTruncatedBlob({kind: 'blob', value: {hex: 'ab'.repeat(64), size: 200}})).toBe(true);
+        expect(isTruncatedBlob({kind: 'blob', value: {hex: 'abcd', size: 2}})).toBe(false);
+        expect(isTruncatedBlob({kind: 'text', value: 'x'})).toBe(false);
     });
 });
