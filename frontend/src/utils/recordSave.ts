@@ -1,10 +1,14 @@
-import {cellDetailText} from './cellDetail';
+import {cellDetailText, isTruncatedBlob} from './cellDetail';
 import {model} from '../api';
+
+/** 'hex' sends the field as BLOB bytes written in hex; '' lets the column's type affinity apply. */
+export type FieldEncoding = '' | 'hex';
 
 export interface PlainColumnUpdate {
     column: string;
     text: string;
     isNull: boolean;
+    encoding: FieldEncoding;
 }
 
 export function fieldDraft(cell: model.CellValue): string {
@@ -12,6 +16,25 @@ export function fieldDraft(cell: model.CellValue): string {
         return '';
     }
     return cellDetailText(cell);
+}
+
+/**
+ * BLOB cells are edited as hex. So is a NULL cell in a BLOB column. The encoding comes from
+ * the cell and column, never from what the user typed, so text such as "0xcafe" stays text.
+ */
+export function fieldEncoding(cell: model.CellValue, meta?: model.ColumnInfo): FieldEncoding {
+    if (cell.kind === 'blob') {
+        return 'hex';
+    }
+    if (cell.kind === 'null' && (meta?.type ?? '').toUpperCase().includes('BLOB')) {
+        return 'hex';
+    }
+    return '';
+}
+
+/** A field can be edited unless it only shows a preview of a larger BLOB. */
+export function isFieldEditable(cell: model.CellValue): boolean {
+    return !isTruncatedBlob(cell);
 }
 
 /** Builds column updates for changed fields only. */
@@ -26,7 +49,7 @@ export function buildColumnUpdates(
 
     columns.forEach((col, i) => {
         const meta = metaByName.get(col.name);
-        if (!meta) {
+        if (!meta || !isFieldEditable(cells[i])) {
             return;
         }
         const original = fieldDraft(cells[i]);
@@ -46,18 +69,21 @@ export function draftToColumnUpdate(
     cell: model.CellValue,
     meta: model.ColumnInfo,
 ): PlainColumnUpdate {
-    const trimmed = draft;
-    if (trimmed === '') {
+    if (!isFieldEditable(cell)) {
+        throw new Error(`Column "${column}" holds a BLOB too large to edit here.`);
+    }
+    const encoding = fieldEncoding(cell, meta);
+    if (draft === '') {
         if (!meta.notNull) {
-            return {column, text: '', isNull: true};
+            return {column, text: '', isNull: true, encoding};
         }
         const type = (meta.type ?? '').toUpperCase();
-        if (type.includes('TEXT') || cell.kind === 'text') {
-            return {column, text: '', isNull: false};
+        if (encoding === 'hex' || type.includes('TEXT') || cell.kind === 'text') {
+            return {column, text: '', isNull: false, encoding};
         }
         throw new Error(`Column "${column}" cannot be empty.`);
     }
-    return {column, text: trimmed, isNull: false};
+    return {column, text: draft, isNull: false, encoding};
 }
 
 export function hasDraftChanges(

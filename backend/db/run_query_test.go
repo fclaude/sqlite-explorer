@@ -29,7 +29,9 @@ func TestRunQuery_BlocksWriteEvenIfValidatorBypassed(t *testing.T) {
 	}
 	defer conn.Close()
 
-	_, err = conn.runQuery(context.Background(), `INSERT INTO t VALUES (1)`)
+	// Misclassify a write as a read: the read-only connection must still refuse it.
+	plan := Plan{Statements: []Statement{{SQL: `INSERT INTO t VALUES (1)`, Category: CategoryRead, Label: "SELECT"}}}
+	_, err = conn.execPlan(context.Background(), plan, func(*sql.Rows) error { return nil })
 	if err == nil {
 		t.Fatal("expected engine-level readonly rejection")
 	}
@@ -64,7 +66,7 @@ func TestRunQuery_ReadOnlyConnectionSeesWrites(t *testing.T) {
 	if _, err := conn.sql.Exec(`INSERT INTO t VALUES (7)`); err != nil {
 		t.Fatal(err)
 	}
-	resp, err := conn.RunQuery(context.Background(), `SELECT id FROM t`)
+	resp, err := conn.RunQuery(context.Background(), `SELECT id FROM t`, ReadOnlyPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +91,7 @@ func TestRunQuery_TimesOut(t *testing.T) {
 
 	_, err = conn.RunQuery(ctx, `WITH RECURSIVE c(x) AS (
 		SELECT 1 UNION ALL SELECT x+1 FROM c
-	) SELECT count(*) FROM c`)
+	) SELECT count(*) FROM c`, ReadOnlyPolicy)
 	if err == nil {
 		t.Fatal("expected timeout")
 	}
@@ -126,7 +128,7 @@ func TestRunQuery_Truncation(t *testing.T) {
 	}
 	defer conn.Close()
 
-	resp, err := conn.RunQuery(context.Background(), `SELECT id FROM big`)
+	resp, err := conn.RunQuery(context.Background(), `SELECT id FROM big`, ReadOnlyPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +158,7 @@ func TestRunQuery_ColumnOrderStable(t *testing.T) {
 	}
 	defer conn.Close()
 
-	resp, err := conn.RunQuery(context.Background(), `SELECT b, a FROM t`)
+	resp, err := conn.RunQuery(context.Background(), `SELECT b, a FROM t`, ReadOnlyPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +195,7 @@ func TestRunQuery_AllValueKinds(t *testing.T) {
 	}
 	defer conn.Close()
 
-	resp, err := conn.RunQuery(context.Background(), `SELECT i, r, txt, b FROM t`)
+	resp, err := conn.RunQuery(context.Background(), `SELECT i, r, txt, b FROM t`, ReadOnlyPolicy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +225,7 @@ func TestRunQuery_ReadOnlyRejectsDrop(t *testing.T) {
 	}
 	defer conn.Close()
 
-	_, err = conn.RunQuery(context.Background(), `DROP TABLE customers`)
+	_, err = conn.RunQuery(context.Background(), `DROP TABLE customers`, ReadOnlyPolicy)
 	if err == nil {
 		t.Fatal("expected error")
 	}

@@ -5,12 +5,16 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	"sqlite-explorer/backend/apperrors"
 	"sqlite-explorer/backend/model"
 )
+
+// EncodingHex marks a ColumnUpdate whose text is BLOB bytes written as hex digits.
+const EncodingHex = "hex"
 
 // UpdateTableRow applies column updates to a single table row identified by SQLite rowid.
 func (d *DB) UpdateTableRow(ctx context.Context, req model.UpdateTableRowRequest) (model.UpdateTableRowResponse, error) {
@@ -55,9 +59,10 @@ func (d *DB) UpdateTableRow(ctx context.Context, req model.UpdateTableRowRequest
 			req.Table,
 		)
 	}
+	// SQLite matches column names case-insensitively (ASCII only).
 	colByName := make(map[string]model.ColumnInfo, len(columns))
 	for _, c := range columns {
-		colByName[c.Name] = c
+		colByName[asciiLower(c.Name)] = c
 	}
 
 	quotedTable, err := QuoteIdentifier(req.Table)
@@ -69,7 +74,7 @@ func (d *DB) UpdateTableRow(ctx context.Context, req model.UpdateTableRowRequest
 	args := make([]any, 0, len(req.Updates)+1)
 	updatedColumns := make(map[string]bool, len(req.Updates))
 	for _, upd := range req.Updates {
-		columnKey := strings.ToLower(upd.Column)
+		columnKey := asciiLower(upd.Column)
 		if updatedColumns[columnKey] {
 			return model.UpdateTableRowResponse{}, apperrors.New(
 				apperrors.CodeInvalidColumn,
@@ -78,7 +83,7 @@ func (d *DB) UpdateTableRow(ctx context.Context, req model.UpdateTableRowRequest
 			)
 		}
 		updatedColumns[columnKey] = true
-		col, ok := colByName[upd.Column]
+		col, ok := colByName[columnKey]
 		if !ok {
 			return model.UpdateTableRowResponse{}, apperrors.New(
 				apperrors.CodeInvalidColumn,
@@ -86,7 +91,7 @@ func (d *DB) UpdateTableRow(ctx context.Context, req model.UpdateTableRowRequest
 				upd.Column,
 			)
 		}
-		qCol, err := QuoteIdentifier(upd.Column)
+		qCol, err := QuoteIdentifier(col.Name)
 		if err != nil {
 			return model.UpdateTableRowResponse{}, err
 		}
@@ -102,7 +107,7 @@ func (d *DB) UpdateTableRow(ctx context.Context, req model.UpdateTableRowRequest
 	if err != nil {
 		return model.UpdateTableRowResponse{}, err
 	}
-	returningCols, resultCols, colTypes, err := updateReturningColumns(columns)
+	returningCols, resultCols, err := updateReturningColumns(columns)
 	if err != nil {
 		return model.UpdateTableRowResponse{}, err
 	}
@@ -125,12 +130,10 @@ func (d *DB) UpdateTableRow(ctx context.Context, req model.UpdateTableRowRequest
 			"rowid="+req.RowID,
 		)
 	}
-	cells, err := scanUpdatedRow(rows, columns, colTypes)
+	cells, err := scanUpdatedRow(rows, len(columns))
 	if err != nil {
 		return model.UpdateTableRowResponse{}, mapUpdateError(err)
 	}
-
-	d.invalidateRowCountCache(req.Table)
 
 	return model.UpdateTableRowResponse{Columns: resultCols, Cells: cells}, nil
 }
@@ -151,7 +154,7 @@ func (d *DB) editableRowIDAlias(ctx context.Context, table string, columns []mod
 
 	columnNames := make(map[string]bool, len(columns))
 	for _, column := range columns {
-		columnNames[strings.ToLower(column.Name)] = true
+		columnNames[asciiLower(column.Name)] = true
 	}
 	for _, alias := range []string{"rowid", "_rowid_", "oid"} {
 		if !columnNames[alias] {
@@ -170,16 +173,37 @@ func (d *DB) isTable(ctx context.Context, name string) bool {
 	return err == nil && typ == "table"
 }
 
-func (d *DB) invalidateRowCountCache(table string) {
-	d.countMu.Lock()
-	for k := range d.rowCountCache {
-		if k.table == table {
-			delete(d.rowCountCache, k)
-		}
+type affinity int
+
+const (
+	affinityInteger affinity = iota
+	affinityText
+	affinityBlob
+	affinityReal
+	affinityNumeric
+)
+
+// columnAffinity applies SQLite's rules for deriving type affinity from a declared type, in
+// the documented order: https://www.sqlite.org/datatype3.html#determination_of_column_affinity
+func columnAffinity(declared string) affinity {
+	t := strings.ToUpper(declared)
+	switch {
+	case strings.Contains(t, "INT"):
+		return affinityInteger
+	case strings.Contains(t, "CHAR"), strings.Contains(t, "CLOB"), strings.Contains(t, "TEXT"):
+		return affinityText
+	case strings.Contains(t, "BLOB"), strings.TrimSpace(t) == "":
+		return affinityBlob
+	case strings.Contains(t, "REAL"), strings.Contains(t, "FLOA"), strings.Contains(t, "DOUB"):
+		return affinityReal
+	default:
+		return affinityNumeric
 	}
-	d.countMu.Unlock()
 }
 
+// parseColumnUpdate converts an edited field into a value to bind. Hex-encoded BLOBs are
+// decoded; everything else is text that SQLite converts using the column's affinity, except
+// that INTEGER and REAL columns require a number so a typo cannot silently store text.
 func parseColumnUpdate(upd model.ColumnUpdate, col model.ColumnInfo) (any, error) {
 	if upd.IsNull {
 		if col.NotNull {
@@ -192,76 +216,82 @@ func parseColumnUpdate(upd model.ColumnUpdate, col model.ColumnInfo) (any, error
 		return nil, nil
 	}
 
-	text := upd.Text
-	upperType := strings.ToUpper(col.Type)
-
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(text)), "0x") {
-		hexStr := strings.TrimSpace(text)[2:]
-		if idx := strings.Index(hexStr, "\n\n["); idx >= 0 {
-			hexStr = hexStr[:idx]
-		}
-		hexStr = strings.Map(func(r rune) rune {
-			if r == ' ' || r == '\n' || r == '\r' {
-				return -1
-			}
-			return r
-		}, hexStr)
-		b, err := hex.DecodeString(hexStr)
-		if err != nil {
-			return nil, apperrors.New(apperrors.CodeMalformedSQL, "Invalid BLOB hex value.", err.Error())
-		}
-		return b, nil
+	switch upd.Encoding {
+	case "":
+	case EncodingHex:
+		return decodeHexBlob(upd.Text)
+	default:
+		return nil, apperrors.New(apperrors.CodeMalformedSQL, "Unknown value encoding.", upd.Encoding)
 	}
 
-	if strings.Contains(upperType, "BLOB") {
-		return []byte(text), nil
+	switch columnAffinity(col.Type) {
+	case affinityInteger, affinityReal:
+		return parseNumber(upd.Text, col.Name)
+	default:
+		return upd.Text, nil
 	}
-	if strings.Contains(upperType, "INT") {
-		n, err := strconv.ParseInt(strings.TrimSpace(text), 10, 64)
-		if err != nil {
-			return nil, apperrors.New(apperrors.CodeMalformedSQL, fmt.Sprintf("Invalid integer for %q.", col.Name), text)
-		}
+}
+
+// parseNumber accepts decimal integer and real literals, like SQLite's numeric conversion.
+func parseNumber(text, column string) (any, error) {
+	trimmed := strings.TrimSpace(text)
+	if n, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
 		return n, nil
 	}
-	if strings.Contains(upperType, "REAL") || strings.Contains(upperType, "FLOA") || strings.Contains(upperType, "DOUB") {
-		f, err := strconv.ParseFloat(strings.TrimSpace(text), 64)
-		if err != nil {
-			return nil, apperrors.New(apperrors.CodeMalformedSQL, fmt.Sprintf("Invalid number for %q.", col.Name), text)
+	invalid := apperrors.New(apperrors.CodeMalformedSQL, fmt.Sprintf("Invalid number for %q.", column), text)
+	// strconv also accepts hex floats, "Inf", and "NaN", which SQLite does not treat as numbers.
+	for _, c := range trimmed {
+		if !strings.ContainsRune("0123456789+-.eE", c) {
+			return nil, invalid
 		}
-		return f, nil
 	}
-
-	return text, nil
+	f, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil || math.IsInf(f, 0) {
+		return nil, invalid
+	}
+	return f, nil
 }
 
-func updateReturningColumns(columns []model.ColumnInfo) ([]string, []model.ColumnResult, map[string]string, error) {
+// decodeHexBlob decodes hex digits with an optional 0x prefix; ASCII whitespace is ignored.
+func decodeHexBlob(text string) ([]byte, error) {
+	digits := strings.Map(func(r rune) rune {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, text)
+	if len(digits) >= 2 && digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X') {
+		digits = digits[2:]
+	}
+	b, err := hex.DecodeString(digits)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeMalformedSQL, "Invalid BLOB hex value.", err.Error())
+	}
+	return b, nil
+}
+
+func updateReturningColumns(columns []model.ColumnInfo) ([]string, []model.ColumnResult, error) {
 	selectCols := make([]string, len(columns))
 	resultCols := make([]model.ColumnResult, len(columns))
-	colTypes := make(map[string]string, len(columns))
 	for i, col := range columns {
-		q, err := QuoteIdentifier(col.Name)
+		expr, err := selectColumn(col.Name)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
-		selectCols[i] = q
-		colTypes[col.Name] = col.Type
+		selectCols[i] = expr
 		resultCols[i] = model.ColumnResult{Name: col.Name, Type: col.Type}
 	}
-	return selectCols, resultCols, colTypes, nil
+	return selectCols, resultCols, nil
 }
 
-func scanUpdatedRow(rows *sql.Rows, columns []model.ColumnInfo, colTypes map[string]string) ([]model.CellValue, error) {
-	dest := make([]any, len(columns))
-	ptrs := make([]any, len(columns))
-	for i := range dest {
-		ptrs[i] = &dest[i]
-	}
-	if err := rows.Scan(ptrs...); err != nil {
+func scanUpdatedRow(rows *sql.Rows, n int) ([]model.CellValue, error) {
+	values, err := scanValues(rows, n)
+	if err != nil {
 		return nil, err
 	}
-	cells := make([]model.CellValue, len(columns))
-	for i, col := range columns {
-		cells[i] = coerceValue(dest[i], colTypes[col.Name])
+	cells := make([]model.CellValue, n)
+	for i, v := range values {
+		cells[i] = coerceValue(v)
 	}
 	return cells, nil
 }
@@ -274,5 +304,5 @@ func mapUpdateError(err error) error {
 			err.Error(),
 		)
 	}
-	return fmt.Errorf("update row: %w", err)
+	return apperrors.New(apperrors.CodeMalformedSQL, "The row could not be updated.", err.Error())
 }

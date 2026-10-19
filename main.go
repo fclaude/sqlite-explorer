@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -15,6 +17,10 @@ import (
 var assets embed.FS
 
 func main() {
+	if output, handled := versionOutput(os.Args[1:], version, sourceCommit, packageRevision); handled {
+		fmt.Println(output)
+		return
+	}
 	app := backend.NewApp()
 
 	err := wails.Run(&options.App{
@@ -32,6 +38,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
+		ErrorFormatter: backend.FormatError,
 	})
 
 	if err != nil {

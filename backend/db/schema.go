@@ -13,7 +13,7 @@ import (
 const schemaQueryTimeout = 5 * time.Second
 
 // GetSchema loads tables, views, indexes, and triggers with column/FK/index metadata.
-// Row counts are not computed; use GetTableRowCount on demand.
+// Row counts are not computed here; the data grid and statistics view count on demand.
 func (d *DB) GetSchema(ctx context.Context) (model.SchemaInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, schemaQueryTimeout)
 	defer cancel()
@@ -64,23 +64,6 @@ func (d *DB) GetSchema(ctx context.Context) (model.SchemaInfo, error) {
 	}
 
 	return info, nil
-}
-
-// GetTableRowCount returns an exact row count for a table or view (lazy, on demand).
-func (d *DB) GetTableRowCount(ctx context.Context, table string) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, schemaQueryTimeout)
-	defer cancel()
-
-	quoted, err := QuoteIdentifier(table)
-	if err != nil {
-		return 0, err
-	}
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", quoted)
-	var count int64
-	if err := d.sql.QueryRowContext(ctx, query).Scan(&count); err != nil {
-		return 0, fmt.Errorf("count rows for %s: %w", table, err)
-	}
-	return count, nil
 }
 
 type schemaObject struct {
