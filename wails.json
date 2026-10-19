@@ -14,7 +14,7 @@
   "info": {
     "companyName": "Recoded",
     "productName": "SQLite Explorer",
-    "productVersion": "0.1.2",
+    "productVersion": "0.2.0",
     "copyright": "Copyright © 2026 Francisco Claude-Faust",
     "comments": "A local-only desktop browser and editor for SQLite databases."
   }

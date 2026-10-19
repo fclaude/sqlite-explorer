@@ -25,6 +25,7 @@ jobs:
           frontend_version="$(jq -r '.version' frontend/package.json)"
           test "$version" = "$wails_version"
           test "$version" = "$frontend_version"
+          test -s "docs/release-notes/v$version.md"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
   linux:
@@ -47,7 +48,7 @@ jobs:
         working-directory: frontend
         run: npm ci
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@"$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       - name: Build Linux binary
         run: wails build -clean -trimpath -m -platform linux/amd64
       - name: Build Linux packages
@@ -85,7 +86,7 @@ jobs:
         working-directory: frontend
         run: npm ci
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@"$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       - name: Build universal macOS application
         run: wails build -clean -trimpath -m -platform darwin/universal
       - name: Ad-hoc sign and package macOS application
@@ -118,6 +119,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
@@ -133,8 +135,10 @@ jobs:
       - name: Publish GitHub Release
         shell: bash
         run: |
+          notes="docs/release-notes/$GITHUB_REF_NAME.md"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" release/* --clobber
+            gh release edit "$GITHUB_REF_NAME" --notes-file "$notes"
           else
-            gh release create "$GITHUB_REF_NAME" release/* --verify-tag --generate-notes --title "SQLite Explorer $GITHUB_REF_NAME"
+            gh release create "$GITHUB_REF_NAME" release/* --verify-tag --notes-file "$notes" --title "SQLite Explorer $GITHUB_REF_NAME"
           fi
