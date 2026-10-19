@@ -2,7 +2,7 @@ package backend
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"log"
 	"os"
 	"sync"
@@ -20,8 +20,13 @@ import (
 type App struct {
 	ctx context.Context
 
-	dbMu sync.RWMutex
-	db   *db.DB
+	// dbMu guards db and dbCtx. Bound methods hold the read lock while they use the
+	// database; dbCtx is cancelled before the database is replaced or closed so that
+	// in-flight work stops and releases the lock promptly.
+	dbMu     sync.RWMutex
+	db       *db.DB
+	dbCtx    context.Context
+	dbCancel context.CancelFunc
 
 	queryMu     sync.Mutex
 	queryID     int64
@@ -40,10 +45,75 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
+// FormatError serializes errors returned by bound methods. The Wails runtime rejects with
+// new Error(value), which only preserves strings, so the code, message, and detail travel
+// as a JSON string that the frontend decodes.
+func FormatError(err error) any {
+	appErr, ok := apperrors.As(err)
+	if !ok {
+		appErr = apperrors.New(apperrors.CodeInternal, apperrors.UserMessage(err), err.Error())
+	}
+	b, marshalErr := json.Marshal(appErr)
+	if marshalErr != nil {
+		return appErr.Message
+	}
+	return string(b)
+}
+
+func errNoDatabase() error {
+	return apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+}
+
+// withDB runs fn with the open database while holding the read lock.
+func withDB[T any](a *App, fn func(ctx context.Context, conn *db.DB) (T, error)) (T, error) {
+	a.dbMu.RLock()
+	defer a.dbMu.RUnlock()
+	if a.db == nil {
+		var zero T
+		return zero, errNoDatabase()
+	}
+	return fn(a.dbCtx, a.db)
+}
+
+func (a *App) hasDatabase() bool {
+	a.dbMu.RLock()
+	defer a.dbMu.RUnlock()
+	return a.db != nil
+}
+
+// swapDB replaces the open database with next (nil closes it).
+func (a *App) swapDB(next *db.DB) error {
+	// Cancel first: taking the write lock waits for every reader, and a waiting writer
+	// blocks new readers, so uncancelled work would stall the whole UI.
+	a.dbMu.RLock()
+	cancel := a.dbCancel
+	a.dbMu.RUnlock()
+	if cancel != nil {
+		cancel()
+	}
+
+	a.dbMu.Lock()
+	old, oldCancel := a.db, a.dbCancel
+	a.db = next
+	a.dbCtx, a.dbCancel = nil, nil
+	if next != nil {
+		a.dbCtx, a.dbCancel = context.WithCancel(context.Background())
+	}
+	a.dbMu.Unlock()
+
+	if oldCancel != nil {
+		oldCancel()
+	}
+	if old != nil {
+		return old.Close()
+	}
+	return nil
+}
+
 // OpenDatabase shows a native file picker and opens the selected SQLite file.
 func (a *App) OpenDatabase() (model.DatabaseInfo, error) {
 	if a.ctx == nil {
-		return model.DatabaseInfo{}, apperrors.New(apperrors.CodeMalformedSQL, "Application not started.", "")
+		return model.DatabaseInfo{}, apperrors.New(apperrors.CodeInternal, "Application not started.", "")
 	}
 
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
@@ -76,66 +146,59 @@ func (a *App) openPath(path string) (model.DatabaseInfo, error) {
 		)
 	}
 
-	a.dbMu.Lock()
-	old := a.db
-	a.db = conn
-	a.dbMu.Unlock()
-	if old != nil {
-		_ = old.Close()
+	if err := a.swapDB(conn); err != nil {
+		log.Printf("close previous database: %v", err)
 	}
-	return a.databaseInfo(conn)
+	return databaseInfo(conn)
 }
 
 // CloseDatabase closes the current database connection.
 func (a *App) CloseDatabase() error {
-	a.CancelQuery(0)
-	a.dbMu.Lock()
-	defer a.dbMu.Unlock()
-	if a.db == nil {
-		return apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
+	if !a.hasDatabase() {
+		return errNoDatabase()
 	}
-	err := a.db.Close()
-	a.db = nil
-	return err
+	return a.swapDB(nil)
 }
 
 // DatabaseInfo returns metadata for the currently open database.
 func (a *App) DatabaseInfo() (model.DatabaseInfo, error) {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return model.DatabaseInfo{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
-	return a.databaseInfo(a.db)
+	return withDB(a, func(_ context.Context, conn *db.DB) (model.DatabaseInfo, error) {
+		return databaseInfo(conn)
+	})
 }
 
 // GetSchema returns tables, views, indexes, and triggers for the open database.
 func (a *App) GetSchema() (model.SchemaInfo, error) {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return model.SchemaInfo{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
-	start := time.Now()
-	schema, err := a.db.GetSchema(context.Background())
-	if err != nil {
-		return model.SchemaInfo{}, err
-	}
-	log.Printf("GetSchema completed in %dms", time.Since(start).Milliseconds())
-	return schema, nil
+	return withDB(a, func(ctx context.Context, conn *db.DB) (model.SchemaInfo, error) {
+		start := time.Now()
+		schema, err := conn.GetSchema(ctx)
+		if err != nil {
+			return model.SchemaInfo{}, err
+		}
+		log.Printf("GetSchema completed in %dms", time.Since(start).Milliseconds())
+		return schema, nil
+	})
 }
 
-// ExportRowsToCSV exports table page or query results to a CSV file via save dialog.
-func (a *App) ExportRowsToCSV(req model.ExportRequest) error {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
+// GetStatementCategories describes the SQL statement categories the editor can allow.
+func (a *App) GetStatementCategories() []model.StatementCategory {
+	return db.StatementCategories()
+}
+
+// ExportRowsToCSV exports table rows or query results to a CSV file chosen in a save dialog.
+// The export counts as the active query, so CancelQuery stops it.
+func (a *App) ExportRowsToCSV(req model.ExportRequest) (model.ExportResult, error) {
 	if a.ctx == nil {
-		return apperrors.New(apperrors.CodeMalformedSQL, "Application not started.", "")
+		return model.ExportResult{}, apperrors.New(apperrors.CodeInternal, "Application not started.", "")
+	}
+	if !a.hasDatabase() {
+		return model.ExportResult{}, errNoDatabase()
+	}
+	if err := db.ValidateExport(req); err != nil {
+		return model.ExportResult{}, err
 	}
 
+	// The dialog is modal and can stay open indefinitely, so no lock is held while it is shown.
 	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           "Export to CSV",
 		DefaultFilename: exportDefaultFilename(req),
@@ -145,18 +208,29 @@ func (a *App) ExportRowsToCSV(req model.ExportRequest) error {
 		},
 	})
 	if err != nil {
-		return err
+		return model.ExportResult{}, err
 	}
 	if path == "" {
-		return nil
+		return model.ExportResult{}, nil
 	}
+	return a.exportToPath(path, req)
+}
 
-	return a.db.ExportRowsToCSV(context.Background(), path, req)
+func (a *App) exportToPath(path string, req model.ExportRequest) (model.ExportResult, error) {
+	return withDB(a, func(ctx context.Context, conn *db.DB) (model.ExportResult, error) {
+		ctx, _, done := a.beginQuery(ctx)
+		defer done()
+		n, err := conn.ExportRowsToCSV(ctx, path, req)
+		if err != nil {
+			return model.ExportResult{}, err
+		}
+		return model.ExportResult{Path: path, RowCount: n}, nil
+	})
 }
 
 func exportDefaultFilename(req model.ExportRequest) string {
 	switch req.Source {
-	case db.ExportSourceTablePage:
+	case db.ExportSourceTablePage, db.ExportSourceTable:
 		if req.TableRows.Table != "" {
 			return req.TableRows.Table + ".csv"
 		}
@@ -166,15 +240,10 @@ func exportDefaultFilename(req model.ExportRequest) string {
 	return "export.csv"
 }
 
-// RunQuery executes read-only SQL and returns results.
-func (a *App) RunQuery(req model.QueryRequest) (model.QueryResponse, error) {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return model.QueryResponse{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
+// beginQuery registers ctx-derived work as the active query, cancelling the previous one.
+// Call done when the work finishes.
+func (a *App) beginQuery(parent context.Context) (context.Context, int64, func()) {
+	ctx, cancel := context.WithCancel(parent)
 	id := atomic.AddInt64(&a.nextQueryID, 1)
 
 	a.queryMu.Lock()
@@ -185,34 +254,36 @@ func (a *App) RunQuery(req model.QueryRequest) (model.QueryResponse, error) {
 	a.queryCancel = cancel
 	a.queryMu.Unlock()
 
-	defer func() {
+	return ctx, id, func() {
 		a.queryMu.Lock()
 		if a.queryID == id {
 			a.queryCancel = nil
 		}
 		a.queryMu.Unlock()
 		cancel()
-	}()
-
-	resp, err := a.db.RunQuery(ctx, req.SQL)
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return model.QueryResponse{}, apperrors.New(apperrors.CodeCancelled, "Query cancelled.", "")
-		}
-		if appErr, ok := apperrors.As(err); ok {
-			return model.QueryResponse{}, appErr
-		}
-		return model.QueryResponse{}, apperrors.New(
-			apperrors.CodeMalformedSQL,
-			apperrors.UserMessage(err),
-			err.Error(),
-		)
 	}
-	resp.QueryID = id
-	return resp, nil
 }
 
-// CancelQuery cancels an in-flight query. Pass 0 to cancel the active query.
+// RunQuery executes SQL from the editor. Read statements always run; req.Allow lists the
+// other statement categories the user enabled.
+func (a *App) RunQuery(req model.QueryRequest) (model.QueryResponse, error) {
+	policy, err := db.ParsePolicy(req.Allow)
+	if err != nil {
+		return model.QueryResponse{}, err
+	}
+	return withDB(a, func(ctx context.Context, conn *db.DB) (model.QueryResponse, error) {
+		ctx, id, done := a.beginQuery(ctx)
+		defer done()
+		resp, err := conn.RunQuery(ctx, req.SQL, policy)
+		if err != nil {
+			return model.QueryResponse{}, err
+		}
+		resp.QueryID = id
+		return resp, nil
+	})
+}
+
+// CancelQuery cancels an in-flight query or export. Pass 0 to cancel whatever is active.
 func (a *App) CancelQuery(id int64) {
 	a.queryMu.Lock()
 	defer a.queryMu.Unlock()
@@ -232,56 +303,26 @@ func (a *App) activeQueryID() int64 {
 
 // GetTableRows returns a paginated page of rows for a table or view.
 func (a *App) GetTableRows(req model.TableRowsRequest) (model.TableRowsResponse, error) {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return model.TableRowsResponse{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
-	return a.db.GetTableRows(context.Background(), req)
+	return withDB(a, func(ctx context.Context, conn *db.DB) (model.TableRowsResponse, error) {
+		return conn.GetTableRows(ctx, req)
+	})
 }
 
 // UpdateTableRow saves edits to a single table row.
 func (a *App) UpdateTableRow(req model.UpdateTableRowRequest) (model.UpdateTableRowResponse, error) {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return model.UpdateTableRowResponse{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
-	resp, err := a.db.UpdateTableRow(context.Background(), req)
-	if err != nil {
-		if appErr, ok := apperrors.As(err); ok {
-			return model.UpdateTableRowResponse{}, appErr
-		}
-		return model.UpdateTableRowResponse{}, apperrors.New(
-			apperrors.CodeMalformedSQL,
-			apperrors.UserMessage(err),
-			err.Error(),
-		)
-	}
-	return resp, nil
+	return withDB(a, func(ctx context.Context, conn *db.DB) (model.UpdateTableRowResponse, error) {
+		return conn.UpdateTableRow(ctx, req)
+	})
 }
 
 // GetObjectStats returns statistics for a table or view.
 func (a *App) GetObjectStats(name string) (model.ObjectStats, error) {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return model.ObjectStats{}, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
-	return a.db.GetObjectStats(context.Background(), name)
+	return withDB(a, func(ctx context.Context, conn *db.DB) (model.ObjectStats, error) {
+		return conn.GetObjectStats(ctx, name)
+	})
 }
 
-// GetTableRowCount returns an exact row count for a table or view (lazy, on demand).
-func (a *App) GetTableRowCount(table string) (int64, error) {
-	a.dbMu.RLock()
-	defer a.dbMu.RUnlock()
-	if a.db == nil {
-		return 0, apperrors.New(apperrors.CodeNoDBOpen, "No database is open.", "")
-	}
-	return a.db.GetTableRowCount(context.Background(), table)
-}
-
-func (a *App) databaseInfo(conn *db.DB) (model.DatabaseInfo, error) {
+func databaseInfo(conn *db.DB) (model.DatabaseInfo, error) {
 	info, err := os.Stat(conn.Path())
 	if err != nil {
 		return model.DatabaseInfo{}, err

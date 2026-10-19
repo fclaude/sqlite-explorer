@@ -119,3 +119,96 @@
     color: #8fa3bc;
     padding: 1rem;
 }
+
+.sql-permissions-btn-writes {
+    border-color: #a5813f;
+    color: #f0d49a;
+}
+
+.sql-textarea-writes {
+    border-color: #a5813f;
+}
+
+.sql-permissions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    max-height: 45vh;
+    overflow: auto;
+    padding: 0.75rem;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+    background: #151f2b;
+    font-size: 0.8rem;
+    color: #b8c5d6;
+}
+
+.sql-permissions-line {
+    margin: 0;
+}
+
+.sql-permissions-warning {
+    color: #d4b896;
+}
+
+.sql-permissions-hint {
+    color: #6b829c;
+}
+
+.sql-permissions-pragmas {
+    margin-top: 0.25rem;
+}
+
+.sql-permissions-pragmas code {
+    display: block;
+    margin-top: 0.25rem;
+    color: #8fa3bc;
+    white-space: normal;
+}
+
+.sql-permissions-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.5rem 1rem;
+    margin: 0;
+    padding: 0.5rem 0.75rem 0.75rem;
+    border: 1px solid #2d3a4d;
+    border-radius: 4px;
+}
+
+.sql-permissions-options legend {
+    padding: 0 0.25rem;
+    color: #8fa3bc;
+}
+
+.sql-permissions-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.sql-permissions-option input {
+    margin-top: 0.15rem;
+}
+
+.sql-permissions-option > span {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.sql-permissions-label {
+    color: #e8eef5;
+    font-weight: 600;
+}
+
+.sql-permissions-statements {
+    color: #9ec9e8;
+    font-size: 0.75rem;
+}
+
+.sql-permissions-description {
+    color: #8fa3bc;
+}

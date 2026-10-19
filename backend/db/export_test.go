@@ -3,8 +3,10 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"sqlite-explorer/backend/apperrors"
@@ -23,7 +25,7 @@ func TestExportCSV_RoundTrip(t *testing.T) {
 	defer conn.Close()
 
 	outPath := filepath.Join(t.TempDir(), "roundtrip.csv")
-	err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
+	_, err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
 		Source: ExportSourceTablePage,
 		TableRows: model.TableRowsRequest{
 			Table: "customers", PageSize: 100, Page: 1,
@@ -67,7 +69,7 @@ func TestExportCSV_SpecialChars(t *testing.T) {
 	defer conn.Close()
 
 	outPath := filepath.Join(t.TempDir(), "special.csv")
-	err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
+	_, err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
 		Source: ExportSourceQueryResult,
 		SQL:    `SELECT txt FROM t`,
 	})
@@ -120,7 +122,7 @@ func TestExportCSV_NullsAndBlobs(t *testing.T) {
 	defer conn.Close()
 
 	outPath := filepath.Join(t.TempDir(), "blob.csv")
-	err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
+	_, err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
 		Source: ExportSourceQueryResult,
 		SQL:    `SELECT n, b FROM t`,
 	})
@@ -138,12 +140,9 @@ func TestExportCSV_NullsAndBlobs(t *testing.T) {
 	if records[1][0] != "" {
 		t.Fatalf("null: %q", records[1][0])
 	}
-	want := FormatBlobCSV(blob)
+	want := "0x" + hex.EncodeToString(blob)
 	if records[1][1] != want {
-		t.Fatalf("blob: len=%d want len=%d", len(records[1][1]), len(want))
-	}
-	if len(records[1][1]) != len("0x")+128+len("...(1024 bytes)") {
-		t.Fatalf("blob format: %s", records[1][1][:20])
+		t.Fatalf("blob: len=%d want full value len=%d", len(records[1][1]), len(want))
 	}
 }
 
@@ -159,7 +158,7 @@ func TestExportCSV_HonorsReadOnly(t *testing.T) {
 	defer conn.Close()
 
 	outPath := filepath.Join(t.TempDir(), "should-not-exist.csv")
-	err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
+	_, err = conn.ExportRowsToCSV(context.Background(), outPath, model.ExportRequest{
 		Source: ExportSourceQueryResult,
 		SQL:    `DELETE FROM customers`,
 	})
@@ -172,5 +171,102 @@ func TestExportCSV_HonorsReadOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(outPath); !os.IsNotExist(err) {
 		t.Fatal("file should not exist")
+	}
+}
+
+func TestExportCSV_StreamsAllRows(t *testing.T) {
+	conn, _ := openScratchDB(t, `CREATE TABLE big (id INTEGER PRIMARY KEY, tag TEXT);
+		WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 2500)
+		INSERT INTO big SELECT x, CASE WHEN x % 2 = 0 THEN 'even' ELSE 'odd' END FROM c`)
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	n, err := conn.ExportRowsToCSV(ctx, filepath.Join(dir, "query.csv"), model.ExportRequest{
+		Source: ExportSourceQueryResult, SQL: "SELECT id FROM big ORDER BY id",
+	})
+	if err != nil || n != 2500 {
+		t.Fatalf("query export: n=%d err=%v", n, err)
+	}
+	records, _ := ReadCSVFile(filepath.Join(dir, "query.csv"))
+	if len(records) != 2501 || records[2500][0] != "2500" {
+		t.Fatalf("query export rows: %d", len(records))
+	}
+
+	n, err = conn.ExportRowsToCSV(ctx, filepath.Join(dir, "table.csv"), model.ExportRequest{
+		Source:    ExportSourceTable,
+		TableRows: model.TableRowsRequest{Table: "big", Filter: "even", SortColumn: "id", SortDesc: true},
+	})
+	if err != nil || n != 1250 {
+		t.Fatalf("table export: n=%d err=%v", n, err)
+	}
+	records, _ = ReadCSVFile(filepath.Join(dir, "table.csv"))
+	if records[0][0] != "id" || records[1][0] != "2500" || records[1250][0] != "2" {
+		t.Fatalf("table export order/filter: first=%v last=%v", records[1], records[1250])
+	}
+
+	n, err = conn.ExportRowsToCSV(ctx, filepath.Join(dir, "page.csv"), model.ExportRequest{
+		Source:    ExportSourceTablePage,
+		TableRows: model.TableRowsRequest{Table: "big", Page: 2, PageSize: 50},
+	})
+	if err != nil || n != 50 {
+		t.Fatalf("page export: n=%d err=%v", n, err)
+	}
+	records, _ = ReadCSVFile(filepath.Join(dir, "page.csv"))
+	if records[1][0] != "51" {
+		t.Fatalf("page export first row: %v", records[1])
+	}
+}
+
+func TestExportCSV_FailureKeepsExistingFile(t *testing.T) {
+	conn, _ := openScratchDB(t, `CREATE TABLE t (a INTEGER); INSERT INTO t VALUES (1), (-9223372036854775808)`)
+	out := filepath.Join(t.TempDir(), "existing.csv")
+	if err := os.WriteFile(out, []byte("keep me\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// abs() of the smallest integer fails on the second row, after the first was written.
+	_, err := conn.ExportRowsToCSV(context.Background(), out, model.ExportRequest{
+		Source: ExportSourceQueryResult, SQL: "SELECT abs(a) FROM t",
+	})
+	if err == nil {
+		t.Fatal("expected export error")
+	}
+	got, _ := os.ReadFile(out)
+	if string(got) != "keep me\n" {
+		t.Fatalf("existing file changed: %q", got)
+	}
+	entries, _ := os.ReadDir(filepath.Dir(out))
+	if len(entries) != 1 {
+		t.Fatalf("partial file left behind: %v", entries)
+	}
+}
+
+func TestExportCSV_RejectsWritesEvenWhenEditorAllowsThem(t *testing.T) {
+	err := ValidateExport(model.ExportRequest{Source: ExportSourceQueryResult, SQL: "SELECT 1; DELETE FROM t"})
+	appErr, ok := apperrors.As(err)
+	if !ok || appErr.Code != apperrors.CodeReadOnlyViolation || !strings.Contains(appErr.Message, "exporting runs the query again") {
+		t.Fatalf("got %v", err)
+	}
+	if err := ValidateExport(model.ExportRequest{Source: "bogus"}); err == nil {
+		t.Fatal("unknown source accepted")
+	}
+	if err := ValidateExport(model.ExportRequest{Source: ExportSourceTable}); err == nil {
+		t.Fatal("missing table accepted")
+	}
+}
+
+func TestExportCSV_Cancelled(t *testing.T) {
+	conn, _ := openScratchDB(t, `CREATE TABLE t (a INTEGER)`)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	out := filepath.Join(t.TempDir(), "cancelled.csv")
+	_, err := conn.ExportRowsToCSV(ctx, out, model.ExportRequest{
+		Source: ExportSourceQueryResult,
+		SQL:    "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT x FROM c",
+	})
+	if appErr, ok := apperrors.As(err); !ok || appErr.Code != apperrors.CodeCancelled {
+		t.Fatalf("got %v", err)
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Fatal("cancelled export left a file")
 	}
 }

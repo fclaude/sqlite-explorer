@@ -26,8 +26,8 @@ export function GetSchema() {
   return window['go']['backend']['App']['GetSchema']();
 }
 
-export function GetTableRowCount(arg1) {
-  return window['go']['backend']['App']['GetTableRowCount'](arg1);
+export function GetStatementCategories() {
+  return window['go']['backend']['App']['GetStatementCategories']();
 }
 
 export function GetTableRows(arg1) {

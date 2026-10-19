@@ -216,3 +216,9 @@
 .data-grid-row-btn:hover {
     color: #5b8def;
 }
+
+.record-detail-note {
+    margin: 0.25rem 0 0;
+    font-size: 0.75rem;
+    color: #d4b896;
+}
