@@ -6,6 +6,13 @@ updates:
       interval: weekly
   - package-ecosystem: npm
     directory: /frontend
+    groups:
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
     schedule:
       interval: weekly
   - package-ecosystem: github-actions
