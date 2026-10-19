@@ -48,7 +48,7 @@ jobs:
         working-directory: frontend
         run: npm ci
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@"$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       - name: Build Linux binary
         run: wails build -clean -trimpath -m -platform linux/amd64
       - name: Build Linux packages
@@ -86,7 +86,7 @@ jobs:
         working-directory: frontend
         run: npm ci
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@"$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       - name: Build universal macOS application
         run: wails build -clean -trimpath -m -platform darwin/universal
       - name: Ad-hoc sign and package macOS application
