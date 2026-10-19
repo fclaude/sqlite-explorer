@@ -1,6 +1,6 @@
 .PHONY: build build-linux build-macos run dev vet test frontend-test frontend-build audit doctor install-wails install-deps gen-sample-db gen-big-db
 
-WAILS_VERSION ?= v2.15.0
+WAILS_VERSION ?= $(shell go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
 
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
