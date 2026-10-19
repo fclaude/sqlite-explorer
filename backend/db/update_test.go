@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"sqlite-explorer/backend/apperrors"
@@ -35,8 +37,17 @@ func TestUpdateTableRow_UpdatesTextColumn(t *testing.T) {
 	if err := EnsureFixtureDB(); err != nil {
 		t.Fatal(err)
 	}
-	path, err := FixtureDBPath()
+	fixture, err := FixtureDBPath()
 	if err != nil {
+		t.Fatal(err)
+	}
+	// Copy the fixture: the test writes rows, and must not modify the committed file.
+	path := filepath.Join(t.TempDir(), "sample.sqlite")
+	contents, err := os.ReadFile(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, contents, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	conn, err := Open(path, false)
