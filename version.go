@@ -4,7 +4,7 @@ import "fmt"
 
 // Release builders may set these with -ldflags. A source build never claims a
 // workstation package revision or source identity it was not given.
-var version = "0.2.0"
+var version = "0.2.1"
 var sourceCommit = "development"
 var packageRevision = "development"
 

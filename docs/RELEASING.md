@@ -4,7 +4,7 @@ Pushing a tag `vX.Y.Z` runs [`.github/workflows/release.yml`](../.github/workflo
 
 ## Checklist
 
-1. Set the version in `frontend/package.json`, `frontend/package-lock.json`, `wails.json`, and `frontend/package.json.md5` (Wails compares this hash to decide whether to reinstall dependencies):
+1. Set the version in `version.go`, `frontend/package.json`, `frontend/package-lock.json`, `wails.json`, and `frontend/package.json.md5` (Wails compares this hash to decide whether to reinstall dependencies). CI checks that the binary and package versions agree:
 
    ```bash
    (cd frontend && npm version X.Y.Z --no-git-tag-version)
