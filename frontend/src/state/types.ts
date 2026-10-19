@@ -60,6 +60,16 @@ export const initialState: AppState = {
     },
 };
 
+function objectExists(schema: model.SchemaInfo, selected: SelectedObject): boolean {
+    const lists: Record<ObjectKind, {name: string}[] | undefined> = {
+        table: schema.tables,
+        view: schema.views,
+        index: schema.indexes,
+        trigger: schema.triggers,
+    };
+    return (lists[selected.kind] ?? []).some((o) => o.name === selected.name);
+}
+
 export function appReducer(state: AppState, action: AppAction): AppState {
     switch (action.type) {
         case 'SET_LOADING':
@@ -102,7 +112,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
                 collapsedGroups: state.collapsedGroups,
             };
         case 'SET_SCHEMA':
-            return {...state, schema: action.schema};
+            return {
+                ...state,
+                schema: action.schema,
+                selected: state.selected && objectExists(action.schema, state.selected) ? state.selected : null,
+            };
         case 'SELECT':
             return {...state, selected: action.selected};
         case 'SET_TAB':

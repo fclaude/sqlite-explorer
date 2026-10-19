@@ -1,8 +1,9 @@
-import {useCallback, useEffect, useState} from 'react';
-import {formatAPIError, model, WailsAPI} from '../api';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {APIError, formatAPIError, model, WailsAPI} from '../api';
 import {useDebouncedLoading} from '../hooks/useDebouncedLoading';
 import {formatBytes, formatInteger} from '../utils/formatBytes';
 import {SelectedObject} from '../state/types';
+import {ErrorNotice} from './ErrorNotice';
 import {LoadingOverlay} from './LoadingOverlay';
 import './TableStatsView.css';
 
@@ -21,13 +22,15 @@ interface StatRow {
 export function TableStatsView({selected, hasDatabase, onOpenDatabase}: TableStatsViewProps) {
     const [stats, setStats] = useState<model.ObjectStats | null>(null);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<APIError | null>(null);
+    const requestRef = useRef(0);
     const showLoading = useDebouncedLoading(loading);
 
     const objectName =
         selected && (selected.kind === 'table' || selected.kind === 'view') ? selected.name : null;
 
     const loadStats = useCallback(async () => {
+        const requestId = ++requestRef.current;
         if (!objectName) {
             setStats(null);
             return;
@@ -36,12 +39,18 @@ export function TableStatsView({selected, hasDatabase, onOpenDatabase}: TableSta
         setError(null);
         try {
             const resp = await WailsAPI.getObjectStats(objectName);
-            setStats(resp);
+            if (requestId === requestRef.current) {
+                setStats(resp);
+            }
         } catch (err) {
-            setError(formatAPIError(err).message);
-            setStats(null);
+            if (requestId === requestRef.current) {
+                setError(formatAPIError(err));
+                setStats(null);
+            }
         } finally {
-            setLoading(false);
+            if (requestId === requestRef.current) {
+                setLoading(false);
+            }
         }
     }, [objectName]);
 
@@ -126,7 +135,7 @@ export function TableStatsView({selected, hasDatabase, onOpenDatabase}: TableSta
                 </button>
             </div>
 
-            {error && <p className="table-stats-error" role="alert">{error}</p>}
+            <ErrorNotice error={error} className="table-stats-error" />
 
             <div className="table-stats-body">
                 {showLoading && <LoadingOverlay label="Loading statistics..." />}

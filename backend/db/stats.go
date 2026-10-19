@@ -35,7 +35,7 @@ func (d *DB) GetObjectStats(ctx context.Context, name string) (model.ObjectStats
 		return model.ObjectStats{}, err
 	}
 
-	rowCount, err := d.countRows(ctx, name, "")
+	rowCount, err := d.countRows(ctx, name, columns, "")
 	if err != nil {
 		return model.ObjectStats{}, err
 	}

@@ -26,7 +26,7 @@ func findModuleRoot() (string, error) {
 	}
 }
 
-// FixtureDBPath returns the path to the appendix sample database.
+// FixtureDBPath returns the path to testdata/sample.sqlite.
 func FixtureDBPath() (string, error) {
 	root, err := findModuleRoot()
 	if err != nil {

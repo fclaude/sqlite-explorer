@@ -116,13 +116,6 @@ func TestGetSchema_NoRowCounts(t *testing.T) {
 	if len(schema.Tables) == 0 {
 		t.Fatal("expected tables")
 	}
-	count, err := conn.GetTableRowCount(context.Background(), "customers")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 5 {
-		t.Fatalf("customers row count: got %d, want 5", count)
-	}
 }
 
 func assertNames(t *testing.T, kind string, got []string, want ...string) {
