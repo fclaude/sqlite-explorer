@@ -3,9 +3,9 @@ module sqlite-explorer
 go 1.26.9
 
 require (
-	github.com/wailsapp/wails/v2 v2.15.0
+	github.com/wailsapp/wails/v2 v2.16.0
 	modernc.org/libc v1.79.0
-	modernc.org/sqlite v1.57.0
+	modernc.org/sqlite v1.60.1
 )
 
 require (

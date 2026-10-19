@@ -81,7 +81,7 @@ jobs:
         working-directory: frontend
         run: npm ci
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@"$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)"
       - name: Build package
         run: wails build -clean -trimpath -m -platform "${{ matrix.platform }}"
       - name: Build Linux release packages
