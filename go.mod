@@ -1,6 +1,6 @@
 module sqlite-explorer
 
-go 1.25.13
+go 1.26.9
 
 require (
 	github.com/wailsapp/wails/v2 v2.15.0
