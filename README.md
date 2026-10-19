@@ -59,7 +59,7 @@ The SQL tab runs read queries only. Open **Permissions** in the editor toolbar t
 
 ## Development
 
-You need Go 1.26.9 or newer, Node.js 20.19+ or 22.12+ with npm 10+, and the Wails CLI v2.15.0 (`make install-wails`). Linux builds also need the GTK3 and WebKit2GTK 4.1 development packages:
+You need Go 1.26.9 or newer, Node.js 20.19+ or 22.12+ with npm 10+, and the Wails CLI v2.16.0 (`make install-wails`). Linux builds also need the GTK3 and WebKit2GTK 4.1 development packages:
 
 ```bash
 sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev   # Debian, Ubuntu
